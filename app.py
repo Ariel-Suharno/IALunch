@@ -7,6 +7,13 @@ import re
 
 URL = "https://nutrition.fultonschools.org/MenuCalendar"
 
+MEAL_PRICES = {
+    "Student Lunch": "$3.35",
+    "Reduced Lunch": "$0.00",
+    "Adult Lunch": "$5.25",
+    "Extra Milk": "$0.75"
+}
+
 def get_innovation_html():
     html = urlopen(URL).read().decode("utf-8", errors="ignore")
 
@@ -75,6 +82,8 @@ def clean(text):
 
 def get_diet_badge(food):
     food = food.lower()
+
+    #Categorizes what words trigger off what dietary restriction tag, add as needed according to what type the ingredient is, needs fine tuning for certain menu items
 
     meat = [
         "chicken",
@@ -157,7 +166,6 @@ def get_diet_badge(food):
         "bun",
         "burger",
         "chicken",
-        "tater tots",
         "shrimp",
         "mac",
         "corndog",
@@ -168,7 +176,8 @@ def get_diet_badge(food):
         "boil",
         "wheat",
         "pasta",
-        "jerk"
+        "jerk",
+        "bake"
     ]
 
     if not any(word in food for word in gluten_words):
@@ -178,7 +187,7 @@ def get_diet_badge(food):
 
     return " ".join(badges)
 
-
+#Theortically, automatically changes the menu to the current week
 def get_current_week_menu():
     html = get_innovation_html()
 
@@ -255,6 +264,8 @@ def get_current_week_menu():
 def get_line(food):
     food = food.lower()
 
+    #Organizes food items into which line they're in, use keywords instead of whole name, add as needed
+
     academy_eats = [
         "nacho",
         "teriyaki",
@@ -279,7 +290,7 @@ def get_line(food):
         "bake"
     ]
 
-    line_3 = [
+    go_gourmet = [
         "hamburger",
         "cheeseburger",
         "basket",
@@ -288,10 +299,7 @@ def get_line(food):
         "corndog"
     ]
 
-    line_4 = [
-        "carrot",
-        "tomatoes",
-        "cucumber"
+    chop_it = [
     ]
 
     sides = [
@@ -303,14 +311,17 @@ def get_line(food):
         "steamed",
         "salad",
         "slushies",
-        "mashed"
+        "mashed",
+        "carrot",
+        "tomatoes",
+        "cucumber"
     ]
 
     snacks = [
         "cookie",
         "ice cream",
         "popcorn",
-        "chips"
+        "chips",
         "soda",
         "diet"
     ]
@@ -319,13 +330,13 @@ def get_line(food):
         return "Academy Eats"
 
     if any(word in food for word in hot_spot):
-        return "The Hot Spot"
+        return "Hot Spot"
 
-    if any(word in food for word in line_3):
-        return "line_3"
+    if any(word in food for word in go_gourmet):
+        return "Go Go Gourmet"
 
-    if any(word in food for word in line_4):
-        return "line_4"
+    if any(word in food for word in chop_it):
+        return "Lettuce Chop It"
 
     if any(word in food for word in sides):
             return "Sides"
@@ -360,6 +371,7 @@ h1{
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
     gap:15px;
+    margin-top:20px;
 }
 
 .card{
@@ -367,6 +379,18 @@ h1{
     border-radius:12px;
     padding:15px;
     box-shadow:0 2px 5px rgba(0,0,0,.15);
+}
+
+.top-cards{
+    display:flex;
+    gap:20px;
+    justify-content:center;
+    flex-wrap:wrap;
+    margin-bottom:30px;
+}
+
+.top-card{
+    width:320px;
 }
 
 .badge{
@@ -397,9 +421,36 @@ h1{
 
 <h1>Innovation Lunch Menu</h1>
 
-<div class="container">
+<div class="top-cards">
+
+<div class="card top-card">
+<h2>Legend</h2>
+
+<p><span class="badge vegan">Vegan</span> Vegan</p>
+<p><span class="badge vegetarian">Veggie</span> Vegetarian</p>
+<p><span class="badge gf">GF</span> Gluten Friendly</p>
+
+<small>
+Dietary labels are estimated and may not match
+official allergen information.
+</small>
+
+</div>
+
+<div class="card top-card">
+<h2>Meal Prices</h2>
 """
 
+        for meal, price in MEAL_PRICES.items():
+            html += f"<p>{meal}: {price}</p>"
+
+        html += """
+</div>
+
+</div>
+
+<div class="container">
+"""
         for day, foods in menu.items():
             html += f"""
 <div class="card">
@@ -422,11 +473,27 @@ h1{
 
                     lines[line_name].append(food)
 
+            STATIC_ITEMS = {
+                "Lettuce Chop It": [
+                    "Salad Bar",
+                ] #, (incase there are any other static items to add to the menu, add them here)
+                #"Line name": [
+                #    "Static item 1",
+                #]
+            }
+
+            for category, items in STATIC_ITEMS.items():
+
+                if category not in lines:
+                    lines[category] = []
+
+                lines[category].extend(items)
+
             display_order = [
                 "Academy Eats",
-                "The Hot Spot",
-                "line_3",
-                "line_4",
+                "Hot Spot",
+                "Lettuce Chop It",
+                "Go Go Gourmet",
                 "Sides",
                 "Snacks",
                 "Other"
@@ -451,21 +518,6 @@ h1{
 """
 
         html += """
-</div>
-
-<div class="card" style="max-width:600px;margin:20px auto;">
-<h2>Legend</h2>
-
-<p><span class="badge vegan">Vegan</span> Vegan</p>
-
-<p><span class="badge vegetarian">Veggie</span> Vegetarian</p>
-
-<p><span class="badge gf">GF</span> Gluten Friendly</p>
-
-<small>
-Dietary labels are estimated and may not match
-official allergen information.
-</small>
 </div>
 
 </body>
