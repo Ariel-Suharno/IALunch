@@ -272,7 +272,11 @@ def get_line(food):
         "tangerine",
         "sriracha",
         "general",
-        "rice"
+        "rice",
+        #Check if this is correct line, if not, remove it
+        "sichuan",
+        #Check if this is correct line, if not, remove it
+        "chow mein"
     ]
 
     hot_spot = [
@@ -282,12 +286,15 @@ def get_line(food):
         "pasta",
         "tender",
         "bbq",
+        #Check if this is correct line, if not, remove it
+        "wild mikes",
         "parmesan",
-        "sichuan",
         "boil",
         "waffle",
         "roll",
-        "bake"
+        "bake",
+        "ranch",
+        "breadstick"
     ]
 
     go_gourmet = [
@@ -314,7 +321,8 @@ def get_line(food):
         "mashed",
         "carrot",
         "tomatoes",
-        "cucumber"
+        "cucumber",
+        "edamame"
     ]
 
     snacks = [
@@ -365,6 +373,19 @@ body{
 
 h1{
     text-align:center;
+    font-size:2.5rem;
+}
+
+h2{
+    font-size:1.8rem;
+}
+
+h3{
+    font-size:1.3rem;
+}
+
+li{
+    font-size:1.1rem;
 }
 
 .container{
@@ -393,6 +414,16 @@ h1{
     width:320px;
 }
 
+.today-card{
+    max-width:900px;
+    margin:auto;
+    text-align:center;
+}
+
+.today-card ul{
+    text-align:left;
+}
+
 .badge{
     display:inline-block;
     padding:3px 8px;
@@ -414,12 +445,74 @@ h1{
 .gf{
     background:#1565c0;
 }
+
+.menu-toggle{
+    display:block;
+    margin:20px auto;
+    padding:15px 25px;
+    font-size:18px;
+    font-weight:bold;
+    background:#1565c0;
+    color:white;
+    border:none;
+    border-radius:12px;
+    cursor:pointer;
+}
+
+@media (max-width: 768px){
+
+    .top-cards{
+        flex-direction:column;
+        align-items:center;
+    }
+
+    .top-card{
+        width:100%;
+        max-width:400px;
+    }
+
+    .today-card{
+        width:100%;
+    }
+}
+
+.line-card{
+    background:white;
+    border:1px solid #e5e7eb;
+    border-radius:10px;
+    margin-bottom:12px;
+    overflow:hidden;
+}
+
+.line-card h3{
+    margin:0;
+    padding:10px;
+    font-size:1.5rem;
+    color:#374151;
+    border-bottom:1px solid #e5e7eb;
+}
+
+.line-card ul{
+    margin:0;
+    padding:10px 10px 10px 30px;
+}
+
+.line-card ul{
+    margin:0;
+    padding-left:20px;
+}
+
+.line-container{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:12px;
+}
 </style>
 
 </head>
 <body>
 
-<h1>Innovation Lunch Menu</h1>
+<h1 id="menuTitle">Today's Lunch Menu</h1>
 
 <div class="top-cards">
 
@@ -449,14 +542,62 @@ official allergen information.
 
 </div>
 
+<button
+    id="weekButton"
+    class="menu-toggle"
+    onclick="toggleWeek()">
+    Show Full Week
+</button>
+
+<script>
+function toggleWeek() {
+
+    const hiddenCards =
+        document.querySelectorAll('.future-day');
+
+    const btn =
+        document.getElementById('weekButton');
+
+    const title =
+        document.getElementById('menuTitle');
+
+    let hidden =
+        hiddenCards.length > 0 &&
+        hiddenCards[0].style.display === 'none';
+
+    hiddenCards.forEach(card => {
+        card.style.display =
+            hidden ? 'block' : 'none';
+    });
+
+    if (hidden) {
+        btn.innerText = 'Show Only Today';
+        title.innerText = "This Week's Lunch Menu";
+    } else {
+        btn.innerText = 'Show Full Week';
+        title.innerText = "Today's Lunch Menu";
+    }
+}
+</script>
+
 <div class="container">
 """
+        today_name = datetime.now().strftime("%A")
+
         for day, foods in menu.items():
+
+            if day.startswith(today_name):
+                card_class = 'class="card today-card"'
+            else:
+                card_class = (
+                    'class="card future-day" '
+                    'style="display:none;"'
+                )
+
             html += f"""
-<div class="card">
+<div {card_class}>
 <h2>{day}</h2>
 """
-
             seen = set()
 
             lines = {}
@@ -504,14 +645,21 @@ official allergen information.
                 if line_name not in lines:
                     continue
 
-                html += f"<h3>{line_name}</h3><ul>"
+                html += f"""
+            <div class="line-card">
+            <h3>{line_name}</h3>
+            <ul>
+            """
 
                 foods_in_line = lines[line_name]
 
                 for food in foods_in_line:
                     html += f"<li>{food} {get_diet_badge(food)}</li>"
 
-                html += "</ul>"
+                html += """
+            </ul>
+            </div>
+            """
 
             html += """
 </div>
