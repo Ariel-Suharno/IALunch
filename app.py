@@ -372,7 +372,6 @@ body{
 }
 
 h1{
-    text-align:center;
     font-size:2.5rem;
 }
 
@@ -417,7 +416,6 @@ li{
 .today-card{
     max-width:900px;
     margin:auto;
-    text-align:center;
 }
 
 .today-card ul{
@@ -466,14 +464,53 @@ li{
         align-items:center;
     }
 
-    .top-card{
-        width:100%;
-        max-width:400px;
-    }
-
     .today-card{
         width:100%;
     }
+}
+
+.top-card{
+        background:#ffffff;
+        border:1px solid #3d79b3;
+        border-radius:6px;
+        overflow:hidden;
+}
+
+.banner{
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+
+    gap:20px;
+
+    background:linear-gradient(
+        135deg,
+        #5F87A0 0%,
+        #5F87A0 80%,
+        #7AA0B8 100%
+    );
+
+    color:white;
+    padding:20px 30px;
+    border-radius:12px;
+    margin-bottom:20px;
+}
+
+.school-logo{
+    height:120px;
+    width:auto;
+}
+
+.banner-text{
+    text-align:left;
+}
+
+.banner h1{
+    margin:0;
+}
+
+.banner p{
+    margin:5px 0 0 0;
 }
 
 .line-card{
@@ -507,37 +544,77 @@ li{
     grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
     gap:12px;
 }
+
+.card-header{
+    background:#3d79b3;
+    color:white;
+    padding:12px 16px;
+    font-size:1.2rem;
+    font-weight:normal;
+}
+
+.card-content{
+    padding:15px;
+}
 </style>
 
 </head>
 <body>
 
-<h1 id="menuTitle">Today's Lunch Menu</h1>
+<div class="banner">
+
+<img
+    src="https://event.fcsia.com/themes/default/img/Phoenix_Vector.svg"
+    class="school-logo"
+    alt="Innovation Academy Logo">
+
+<div class="banner-text">
+
+<h1 id="menuTitle">
+Today's Lunch Menu
+</h1>
+
+<p>
+Innovation Academy High School
+</p>
+
+</div>
+
+</div>
 
 <div class="top-cards">
 
-<div class="card top-card">
-<h2>Legend</h2>
+<div class="top-card">
+
+<div class="card-header">
+Legend
+</div>
+
+<div class="card-content">
 
 <p><span class="badge vegan">Vegan</span> Vegan</p>
 <p><span class="badge vegetarian">Veggie</span> Vegetarian</p>
 <p><span class="badge gf">GF</span> Gluten Friendly</p>
 
-<small>
-Dietary labels are estimated and may not match
-official allergen information.
-</small>
+</div>
 
 </div>
 
-<div class="card top-card">
-<h2>Meal Prices</h2>
+<div class="top-card">
+
+<div class="card-header">
+Meal Prices
+</div>
+
+<div class="card-content">
 """
 
         for meal, price in MEAL_PRICES.items():
             html += f"<p>{meal}: {price}</p>"
 
         html += """
+</div>
+
 </div>
 
 </div>
