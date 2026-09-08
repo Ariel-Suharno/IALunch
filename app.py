@@ -388,10 +388,18 @@ li{
 }
 
 .container{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-    gap:15px;
     margin-top:20px;
+}
+
+.week-view{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
+    gap:15px;
+}
+
+.today-view{
+    display:flex;
+    justify-content:center;
 }
 
 .card{
@@ -399,6 +407,7 @@ li{
     border-radius:12px;
     padding:15px;
     box-shadow:0 2px 5px rgba(0,0,0,.15);
+    min-width:0;
 }
 
 .top-cards{
@@ -415,8 +424,9 @@ li{
 
 .today-card{
     max-width:900px;
-    margin:auto;
+    width:auto;
 }
+
 
 .today-card ul{
     text-align:left;
@@ -629,6 +639,9 @@ Meal Prices
 <script>
 function toggleWeek() {
 
+    const container =
+        document.querySelector('.container');    
+
     const hiddenCards =
         document.querySelectorAll('.future-day');
 
@@ -650,14 +663,20 @@ function toggleWeek() {
     if (hidden) {
         btn.innerText = 'Show Only Today';
         title.innerText = "This Week's Lunch Menu";
+
+        container.classList.remove('today-view');
+        container.classList.add('week-view');
     } else {
         btn.innerText = 'Show Full Week';
         title.innerText = "Today's Lunch Menu";
+
+        container.classList.remove('week-view');
+        container.classList.add('today-view');
     }
 }
 </script>
 
-<div class="container">
+<div class="container today-view">
 """
         today_name = datetime.now().strftime("%A")
 
@@ -717,6 +736,8 @@ function toggleWeek() {
                 "Other"
             ]
 
+            html += '<div class="line-container">'
+
             for line_name in display_order:
 
                 if line_name not in lines:
@@ -737,6 +758,8 @@ function toggleWeek() {
             </ul>
             </div>
             """
+            
+            html += '</div>'
 
             html += """
 </div>
