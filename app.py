@@ -566,6 +566,27 @@ li{
 .card-content{
     padding:15px;
 }
+
+.line-card:nth-child(odd){
+    background:#f4f8fb;
+    border:1px solid #5F87A0;
+}
+
+.line-card:nth-child(even){
+    background:#eef4f8;
+    border:1px solid #3d79b3;
+}
+
+.line-card:nth-child(odd) h3{
+    background:#5F87A0;
+    color:white;
+}
+
+.line-card:nth-child(even) h3{
+    background:#3d79b3;
+    color:white;
+}
+
 </style>
 
 </head>
@@ -690,10 +711,21 @@ function toggleWeek() {
                     'style="display:none;"'
                 )
 
+            parts = day.split()
+
+            day_name = parts[0]
+            day_number = int(parts[1])
+
+            current_month = datetime.now().strftime("%b")
+
+            pretty_day = (
+                f"{day_name} ({current_month} {day_number})"
+            )
+
             html += f"""
-<div {card_class}>
-<h2>{day}</h2>
-"""
+            <div {card_class}>
+            <h2>{pretty_day}</h2>
+            """
             seen = set()
 
             lines = {}
