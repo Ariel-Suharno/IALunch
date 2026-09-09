@@ -356,6 +356,15 @@ def get_line(food):
 
 class MenuHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+
+        if self.path == "/Phoenix_Vector.svg":
+            with open("Phoenix_Vector.svg", "rb") as f:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.end_headers()
+                self.wfile.write(f.read())
+            return
+            
         menu = get_current_week_menu()
 
         html = """
