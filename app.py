@@ -604,7 +604,7 @@ li{
 <div class="banner">
 
 <img
-    src="https://event.fcsia.com/themes/default/img/Phoenix_Vector.svg"
+    src="http://localhost:8000/Phoenix_Vector.svg"
     class="school-logo"
     alt="Innovation Academy Logo">
 
