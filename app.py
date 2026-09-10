@@ -257,7 +257,18 @@ def get_current_week_menu():
         item = clean(line)
 
         if item:
-            menu[current_day].append(item)
+
+            if (
+                menu[current_day]
+                and (
+                    item.lower().startswith("w/")
+                    or item.lower().startswith("with ")
+                )
+            ):
+                menu[current_day][-1] += " " + item
+        
+            else:
+                menu[current_day].append(item)
 
     return menu
 
