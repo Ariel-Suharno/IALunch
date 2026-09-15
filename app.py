@@ -284,9 +284,7 @@ def get_line(food):
         "sriracha",
         "general",
         "rice",
-        #Check if this is correct line, if not, remove it
         "sichuan",
-        #Check if this is correct line, if not, remove it
         "chow mein"
     ]
 
@@ -297,7 +295,6 @@ def get_line(food):
         "pasta",
         "tender",
         "bbq",
-        #Check if this is correct line, if not, remove it
         "wild mikes",
         "parmesan",
         "boil",
@@ -305,7 +302,8 @@ def get_line(food):
         "roll",
         "bake",
         "ranch",
-        "breadstick"
+        "breadstick",
+        "mac"
     ]
 
     go_gourmet = [
