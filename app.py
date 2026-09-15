@@ -615,7 +615,7 @@ li{
 <div class="banner">
 
 <img
-    src="http://localhost:8000/Phoenix_Vector.svg"
+    src="/Phoenix_Vector.svg"
     class="school-logo"
     alt="Innovation Academy Logo">
 
