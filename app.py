@@ -413,7 +413,7 @@ class MenuHandler(BaseHTTPRequestHandler):
 
 <link rel="icon"
       type="image/svg+xml"
-      href="Phoenix_Vector.svg">
+      href="https://innovation-menu.onrender.com/Phoenix_Vector.svg">
 
 <style>
 body{
@@ -646,7 +646,7 @@ li{
 <div class="banner">
 
 <img
-    src="Phoenix_Vector.svg"
+    src="https://innovation-menu.onrender.com/Phoenix_Vector.svg"
     class="school-logo"
     alt="Innovation Academy Logo">
 
