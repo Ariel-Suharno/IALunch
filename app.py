@@ -199,6 +199,8 @@ def get_current_week_menu():
         if line.strip()
     ]
 
+    # Test for school out mode by shoving render for the next week
+    # today = datetime.now() + timedelta(days=7)
     today = datetime.now()
     monday = today - timedelta(days=today.weekday())
 
@@ -284,7 +286,9 @@ def get_line(food):
         "sriracha",
         "general",
         "rice",
+        #Check if this is correct line, if not, remove it
         "sichuan",
+        #Check if this is correct line, if not, remove it
         "chow mein"
     ]
 
@@ -295,6 +299,7 @@ def get_line(food):
         "pasta",
         "tender",
         "bbq",
+        #Check if this is correct line, if not, remove it
         "wild mikes",
         "parmesan",
         "boil",
@@ -331,7 +336,8 @@ def get_line(food):
         "carrot",
         "tomatoes",
         "cucumber",
-        "edamame"
+        "edamame",
+        "cauliflower"
     ]
 
     snacks = [
@@ -363,6 +369,29 @@ def get_line(food):
 
     return "Other"
 
+def school_is_out(foods):
+
+    ignore_words = [
+        "milk",
+        "breakfast",
+        "lunch",
+        "adult",
+        "reduced"
+    ]
+
+    real_food_count = 0
+
+    for food in foods:
+
+        text = food.lower()
+
+        if any(word in text for word in ignore_words):
+            continue
+
+        real_food_count += 1
+
+    return real_food_count <= 1
+
 class MenuHandler(BaseHTTPRequestHandler):
     def do_GET(self):
 
@@ -381,6 +410,10 @@ class MenuHandler(BaseHTTPRequestHandler):
 <html>
 <head>
 <title>Fulton Menu</title>
+
+<link rel="icon"
+      type="image/svg+xml"
+      href="Phoenix_Vector.svg">
 
 <style>
 body{
@@ -613,7 +646,7 @@ li{
 <div class="banner">
 
 <img
-    src="https://innovation-menu.onrender.com/Phoenix_Vector.svg"
+    src="Phoenix_Vector.svg"
     class="school-logo"
     alt="Innovation Academy Logo">
 
@@ -739,6 +772,22 @@ function toggleWeek() {
             pretty_day = (
                 f"{day_name} ({current_month} {day_number})"
             )
+
+            if school_is_out(foods):
+                html += f"""
+            <div {card_class}>
+            <h2>{pretty_day}</h2>
+
+            <div class="line-card">
+            <h3>School Closed</h3>
+            <ul>
+            <li><p> No lunch menu available. Have a nice break!</p></li>
+            </ul>
+            </div>
+
+            </div>
+            """
+                continue
 
             html += f"""
             <div {card_class}>
