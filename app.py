@@ -200,6 +200,7 @@ def get_current_week_menu():
     ]
 
     # Test for school out mode by shoving render for the next week
+    # Specifically, to fall break
     # today = datetime.now() + timedelta(days=7)
     today = datetime.now()
     monday = today - timedelta(days=today.weekday())
@@ -413,12 +414,16 @@ class MenuHandler(BaseHTTPRequestHandler):
 
 <link rel="icon"
       type="image/svg+xml"
-      href="https://innovation-menu.onrender.com/Phoenix_Vector.svg">
+      href="Phoenix_Vector.svg">
 
 <style>
 body{
     font-family:Arial,sans-serif;
     background:#eef2f7;
+    margin: 0;
+}
+
+.page-content{
     padding:20px;
 }
 
@@ -553,7 +558,6 @@ li{
 
     color:white;
     padding:20px 30px;
-    border-radius:12px;
     margin-bottom:20px;
 }
 
@@ -646,7 +650,7 @@ li{
 <div class="banner">
 
 <img
-    src="https://innovation-menu.onrender.com/Phoenix_Vector.svg"
+    src="Phoenix_Vector.svg"
     class="school-logo"
     alt="Innovation Academy Logo">
 
