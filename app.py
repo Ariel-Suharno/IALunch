@@ -1,396 +1,26 @@
+from datetime import datetime
+import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.request import urlopen
-from urllib.request import Request, urlopen
-from urllib.parse import urlencode
-from datetime import datetime, timedelta
-import re
 
-URL = "https://nutrition.fultonschools.org/MenuCalendar"
+from backend import (
+    MEAL_PRICES,
+    get_current_week_menu,
+    get_diet_badge,
+    get_line,
+    school_is_out,
+)
 
-MEAL_PRICES = {
-    "Student Lunch": "$3.35",
-    "Reduced Lunch": "$0.00",
-    "Adult Lunch": "$5.25",
-    "Extra Milk": "$0.75"
-}
 
-def get_innovation_html():
-    html = urlopen(URL).read().decode("utf-8", errors="ignore")
-
-    viewstate = re.search(
-        r'id="__VIEWSTATE" value="([^"]+)"',
-        html
-    ).group(1)
-
-    eventvalidation = re.search(
-        r'id="__EVENTVALIDATION" value="([^"]+)"',
-        html
-    ).group(1)
-
-    data = {
-        "__VIEWSTATE": viewstate,
-        "__EVENTVALIDATION": eventvalidation,
-        "__EVENTTARGET": "",
-        "__EVENTARGUMENT": "",
-        "ctl00$MainContent$DdlSites": "7023",
-        "ctl00$MainContent$DdlMealPeriod": "Lunch"
+def render_diet_badges(food):
+    badge_classes = {
+        "Vegan": "vegan",
+        "Veggie": "vegetarian",
+        "GF": "gf",
     }
-
-    request = Request(
-        URL,
-        data=urlencode(data).encode(),
-        method="POST"
+    return " ".join(
+        f'<span class="badge {badge_classes[badge]}">{badge}</span>'
+        for badge in get_diet_badge(food)
     )
-
-    return urlopen(request).read().decode(
-        "utf-8",
-        errors="ignore"
-    )
-
-
-def clean(text):
-    text = text.replace("*NEW*", "").strip()
-
-    #if "w/" in text:
-    #    return None
-
-    if "$" in text:
-        return None
-
-    if "Meal Prices" in text:
-        return None
-
-    bad_words = [
-        "Menu",
-        "Interactive Menus",
-        "Rate your Experience",
-        "Select School",
-        "Select Month",
-        "Select Meal Period",
-        "FULTON COUNTY SCHOOL NUTRITION",
-    ]
-
-    for word in bad_words:
-        if word in text:
-            return None
-
-    if len(text) < 3:
-        return None
-
-    return text
-
-
-def get_diet_badge(food):
-    food = food.lower()
-
-    #Categorizes what words trigger off what dietary restriction tag, add as needed according to what type the ingredient is, needs fine tuning for certain menu items
-
-    meat = [
-        "chicken",
-        "beef",
-        "turkey",
-        "pepperoni",
-        "ham",
-        "sausage",
-        "shrimp",
-        "burger",
-        "hot dog",
-        "nuggets",
-        "drumstick",
-        "meat lovers",
-        "kielbasa",
-        "corndog",
-        "grande",
-        "wings",
-        "bbq"
-    ]
-
-    dairy = [
-        "cheese",
-        "yogurt",
-        "milk",
-        "mozzarella",
-        "parmesan",
-        "stuffed"
-    ]
-
-    badges = []
-
-    contains_meat = any(word in food for word in meat)
-    contains_dairy = any(word in food for word in dairy)
-
-    if (
-        not contains_meat
-        and not contains_dairy
-        and any(
-            word in food
-            for word in [
-                "fruit",
-                "broccoli",
-                "beans",
-                "peas",
-                "carrots",
-                "cucumber",
-                "tomatoes",
-                "salad",
-                "corn",
-                "broccoli",
-            ]
-        )
-    ):
-        badges.append(
-            '<span class="badge vegan">Vegan</span>'
-        )
-
-    if (
-        not contains_meat
-        and (
-            contains_dairy
-            or "pizza" in food
-            or "nachos" in food
-            or "mac n" in food
-        )
-    ):
-        badges.append(
-            '<span class="badge vegetarian">Veggie</span>'
-        )
-
-    gluten_words = [
-        "bread",
-        "breadstick",
-        "pizza",
-        "cookie",
-        "waffle",
-        "croissant",
-        "pasta",
-        "bun",
-        "burger",
-        "chicken",
-        "shrimp",
-        "mac",
-        "corndog",
-        "nachos",
-        "wings",
-        "sandwich",
-        "fries",
-        "boil",
-        "wheat",
-        "pasta",
-        "jerk",
-        "bake"
-    ]
-
-    if not any(word in food for word in gluten_words):
-        badges.append(
-            '<span class="badge gf">GF</span>'
-        )
-
-    return " ".join(badges)
-
-#Theortically, automatically changes the menu to the current week
-def get_current_week_menu():
-    html = get_innovation_html()
-
-    text = re.sub(r"<[^>]+>", "\n", html)
-
-    lines = [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip()
-    ]
-
-    # Test for school out mode by shoving render for the next week
-    # today = datetime.now() + timedelta(days=7)
-    today = datetime.now()
-    monday = today - timedelta(days=today.weekday())
-
-    week_headers = []
-
-    day_names = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday"
-    ]
-
-    for i in range(5):
-        d = monday + timedelta(days=i)
-        week_headers.append(
-            f"{day_names[i]} {d.day}"
-        )
-
-    start_index = None
-
-    monday_header = week_headers[0]
-
-    for index, menu_line in enumerate(lines):
-
-        same_day = (menu_line == monday_header)
-
-        if same_day:
-            start_index = index
-            break
-
-    if start_index is None:
-        return {
-            "Error": [
-                f"Could not locate week beginning {week_headers[0]}"
-            ]
-        }
-
-    menu = {}
-    current_day = None
-
-    for line in lines[start_index:]:
-
-        if line in week_headers:
-            current_day = line
-            menu[current_day] = []
-            continue
-
-        if (
-            current_day
-            and line.startswith("Monday ")
-            and line != week_headers[0]
-        ):
-            break
-
-        item = clean(line)
-
-        if item:
-
-            if (
-                menu[current_day]
-                and (
-                    item.lower().startswith("w/")
-                    or item.lower().startswith("with ")
-                )
-            ):
-                menu[current_day][-1] += " " + item
-        
-            else:
-                menu[current_day].append(item)
-
-    return menu
-
-def get_line(food):
-    food = food.lower()
-
-    #Organizes food items into which line they're in, use keywords instead of whole name, add as needed
-
-    academy_eats = [
-        "nacho",
-        "teriyaki",
-        "tangerine",
-        "sriracha",
-        "general",
-        "rice",
-        #Check if this is correct line, if not, remove it
-        "sichuan",
-        #Check if this is correct line, if not, remove it
-        "chow mein"
-    ]
-
-    hot_spot = [
-        "pizza",
-        "wings",
-        "breaded",
-        "pasta",
-        "tender",
-        "bbq",
-        #Check if this is correct line, if not, remove it
-        "wild mikes",
-        "parmesan",
-        "boil",
-        "waffle",
-        "roll",
-        "bake",
-        "ranch",
-        "breadstick",
-        "mac"
-    ]
-
-    go_gourmet = [
-        "hamburger",
-        "cheeseburger",
-        "basket",
-        "sandwich",
-        "hot dog",
-        "corndog"
-    ]
-
-    chop_it = [
-    ]
-
-    sides = [
-        "tater",
-        "assorted",
-        "bean",
-        "fries",
-        "corn",
-        "steamed",
-        "salad",
-        "slushies",
-        "mashed",
-        "carrot",
-        "tomatoes",
-        "cucumber",
-        "edamame",
-        "cauliflower"
-    ]
-
-    snacks = [
-        "cookie",
-        "ice cream",
-        "popcorn",
-        "chips",
-        "soda",
-        "diet"
-    ]
-
-    if any(word in food for word in academy_eats):
-        return "Academy Eats"
-
-    if any(word in food for word in hot_spot):
-        return "Hot Spot"
-
-    if any(word in food for word in go_gourmet):
-        return "Go Go Gourmet"
-
-    if any(word in food for word in chop_it):
-        return "Lettuce Chop It"
-
-    if any(word in food for word in sides):
-            return "Sides"
-
-    if any(word in food for word in snacks):
-            return "Snacks"
-
-    return "Other"
-
-def school_is_out(foods):
-
-    ignore_words = [
-        "milk",
-        "breakfast",
-        "lunch",
-        "adult",
-        "reduced"
-    ]
-
-    real_food_count = 0
-
-    for food in foods:
-
-        text = food.lower()
-
-        if any(word in text for word in ignore_words):
-            continue
-
-        real_food_count += 1
-
-    return real_food_count <= 1
 
 class MenuHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -419,6 +49,10 @@ class MenuHandler(BaseHTTPRequestHandler):
 body{
     font-family:Arial,sans-serif;
     background:#eef2f7;
+    margin: 0;
+}
+
+.page-content{
     padding:20px;
 }
 
@@ -518,6 +152,24 @@ li{
     cursor:pointer;
 }
 
+.tv-toggle{
+    margin-left:auto;
+    padding:10px 16px;
+    border:1px solid rgba(255,255,255,.7);
+    border-radius:6px;
+    background:#ffffff;
+    color:#234b64;
+    font-size:1rem;
+    font-weight:bold;
+    cursor:pointer;
+    flex-shrink:0;
+}
+
+.tv-toggle:hover,
+.tv-toggle:focus-visible{
+    background:#e7f0f5;
+}
+
 @media (max-width: 768px){
 
     .top-cards{
@@ -553,7 +205,6 @@ li{
 
     color:white;
     padding:20px 30px;
-    border-radius:12px;
     margin-bottom:20px;
 }
 
@@ -638,6 +289,232 @@ li{
     color:white;
 }
 
+body.tv-mode{
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+}
+
+.tv-mode .banner{
+    box-sizing:border-box;
+    flex:0 0 96px;
+    min-height:96px;
+    padding:8px 24px;
+    margin:0;
+}
+
+.tv-mode .school-logo{
+    height:76px;
+}
+
+.tv-mode .banner h1{
+    font-size:2rem;
+}
+
+.tv-mode .banner p{
+    margin-top:2px;
+}
+
+.tv-mode .menu-layout{
+    box-sizing:border-box;
+    display:grid;
+    grid-template-columns:minmax(260px, 300px) minmax(0, 1fr);
+    gap:14px;
+    flex:1;
+    min-height:0;
+    padding:14px 18px 18px;
+}
+
+.tv-mode .top-cards{
+    flex-direction:column;
+    flex-wrap:nowrap;
+    justify-content:flex-start;
+    gap:12px;
+    margin:0;
+}
+
+.tv-mode .top-card{
+    box-sizing:border-box;
+    width:100%;
+    flex:0 0 auto;
+}
+
+.tv-mode .card-content{
+    padding:12px 14px;
+    font-size:1.45rem;
+    line-height:1.35;
+}
+
+.tv-mode .card-content p{
+    margin:8px 0;
+}
+
+.tv-mode .card-header{
+    padding:12px 14px;
+    font-size:1.55rem;
+}
+
+.tv-mode .menu-content{
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    min-height:0;
+}
+
+.tv-mode #weekButton{
+    display:none;
+}
+
+.tv-mode .container{
+    flex:1;
+    min-height:0;
+    margin:0;
+}
+
+.tv-mode .container.today-view{
+    display:flex;
+    align-items:stretch;
+    justify-content:stretch;
+}
+
+.tv-mode .today-card{
+    box-sizing:border-box;
+    display:flex;
+    flex:1;
+    flex-direction:column;
+    width:100%;
+    max-width:none;
+    padding:16px;
+    overflow:hidden;
+}
+
+.tv-mode .today-card h2{
+    margin:0 0 10px;
+    font-size:2.2rem;
+}
+
+.tv-mode .line-container{
+    flex:1;
+    grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+    align-content:stretch;
+    gap:8px;
+    min-height:0;
+}
+
+.tv-mode .line-card{
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    margin:0;
+}
+
+.tv-mode .line-card h3{
+    padding:10px;
+    font-size:1.6rem;
+}
+
+.tv-mode .line-card ul{
+    display:flex;
+    flex:1;
+    flex-direction:column;
+    justify-content:space-evenly;
+    gap:8px;
+    padding:10px 10px 10px 30px;
+}
+
+.tv-mode li{
+    font-size:1.75rem;
+    font-weight:700;
+    line-height:1.35;
+}
+
+.tv-mode .badge{
+    padding:4px 9px;
+    margin-left:5px;
+    font-size:1rem;
+}
+
+@media (max-width: 900px){
+    .tv-mode{
+        height:auto;
+        min-height:100vh;
+        overflow:auto;
+    }
+
+    .tv-mode .menu-layout{
+        display:flex;
+        flex-direction:column;
+        min-height:calc(100vh - 96px);
+    }
+
+    .tv-mode .top-cards{
+        display:grid;
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+
+    .tv-mode .container{
+        flex:auto;
+    }
+
+    .tv-mode .today-card{
+        min-height:70vh;
+    }
+}
+
+@media (max-height: 680px) and (min-width: 901px){
+    .tv-mode .banner{
+        flex-basis:76px;
+        min-height:76px;
+    }
+
+    .tv-mode .school-logo{
+        height:60px;
+    }
+
+    .tv-mode .menu-layout{
+        padding-top:8px;
+        padding-bottom:8px;
+    }
+
+    .tv-mode .today-card{
+        padding:8px;
+    }
+
+    .tv-mode .card-content{
+        padding:8px 10px;
+        font-size:1.2rem;
+    }
+
+    .tv-mode .card-header{
+        padding:8px 10px;
+        font-size:1.3rem;
+    }
+
+    .tv-mode .today-card h2{
+        margin-bottom:6px;
+        font-size:1.8rem;
+    }
+
+    .tv-mode .line-card h3,
+    .tv-mode .line-card ul{
+        padding-top:5px;
+        padding-bottom:5px;
+    }
+
+    .tv-mode .line-card h3{
+        font-size:1.35rem;
+    }
+
+    .tv-mode li{
+        font-size:1.45rem;
+    }
+
+    .tv-mode .badge{
+        font-size:.85rem;
+    }
+}
+
 </style>
 
 </head>
@@ -662,8 +539,18 @@ Innovation Academy High School
 
 </div>
 
+<button
+    id="tvButton"
+    class="tv-toggle"
+    type="button"
+    aria-pressed="false"
+    onclick="toggleTV()">
+    TV View
+</button>
+
 </div>
 
+<div id="menuLayout" class="menu-layout">
 <div class="top-cards">
 
 <div class="top-card">
@@ -701,6 +588,7 @@ Meal Prices
 
 </div>
 
+<div class="menu-content">
 <button
     id="weekButton"
     class="menu-toggle"
@@ -742,6 +630,31 @@ function toggleWeek() {
         btn.innerText = 'Show Full Week';
         title.innerText = "Today's Lunch Menu";
 
+        container.classList.remove('week-view');
+        container.classList.add('today-view');
+    }
+}
+
+function toggleTV() {
+    const enabled =
+        document.body.classList.toggle('tv-mode');
+
+    const tvButton =
+        document.getElementById('tvButton');
+
+    tvButton.innerText = enabled ? 'Exit TV View' : 'TV View';
+    tvButton.setAttribute('aria-pressed', String(enabled));
+
+    if (enabled) {
+        const container =
+            document.querySelector('.container');
+
+        document.querySelectorAll('.future-day').forEach(card => {
+            card.style.display = 'none';
+        });
+
+        document.getElementById('weekButton').innerText = 'Show Full Week';
+        document.getElementById('menuTitle').innerText = "Today's Lunch Menu";
         container.classList.remove('week-view');
         container.classList.add('today-view');
     }
@@ -851,7 +764,7 @@ function toggleWeek() {
                 foods_in_line = lines[line_name]
 
                 for food in foods_in_line:
-                    html += f"<li>{food} {get_diet_badge(food)}</li>"
+                    html += f"<li>{food} {render_diet_badges(food)}</li>"
 
                 html += """
             </ul>
@@ -867,6 +780,9 @@ function toggleWeek() {
         html += """
 </div>
 
+ </div>
+</div>
+
 </body>
 </html>
 """
@@ -879,13 +795,7 @@ function toggleWeek() {
         self.end_headers()
         self.wfile.write(html.encode())
 
-print("Server running at http://localhost:8000")
-
-import os
-
-port = int(os.environ.get("PORT", 8000))
-
-HTTPServer(
-    ("0.0.0.0", port),
-    MenuHandler
-).serve_forever()
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Server running at http://localhost:{port}")
+    HTTPServer(("0.0.0.0", port), MenuHandler).serve_forever()
