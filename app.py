@@ -391,7 +391,7 @@ body.tv-mode{
 
 .tv-mode .today-card h2{
     margin:0 0 10px;
-    font-size:2.2rem;
+    font-size:3.6rem;
 }
 
 .tv-mode .line-container{
@@ -411,7 +411,7 @@ body.tv-mode{
 
 .tv-mode .line-card h3{
     padding:10px;
-    font-size:1.6rem;
+    font-size:3rem;
 }
 
 .tv-mode .line-card ul{
@@ -424,7 +424,7 @@ body.tv-mode{
 }
 
 .tv-mode li{
-    font-size:1.75rem;
+    font-size:2.625rem;
     font-weight:700;
     line-height:1.35;
 }
@@ -432,7 +432,7 @@ body.tv-mode{
 .tv-mode .badge{
     padding:4px 9px;
     margin-left:5px;
-    font-size:1rem;
+    font-size:1.5rem;
 }
 
 @media (max-width: 900px){
@@ -493,7 +493,7 @@ body.tv-mode{
 
     .tv-mode .today-card h2{
         margin-bottom:6px;
-        font-size:1.8rem;
+        font-size:2.8rem;
     }
 
     .tv-mode .line-card h3,
@@ -503,15 +503,15 @@ body.tv-mode{
     }
 
     .tv-mode .line-card h3{
-        font-size:1.35rem;
+        font-size:2.4rem;
     }
 
     .tv-mode li{
-        font-size:1.45rem;
+        font-size:2.175rem;
     }
 
     .tv-mode .badge{
-        font-size:.85rem;
+        font-size:1.275rem;
     }
 }
 
