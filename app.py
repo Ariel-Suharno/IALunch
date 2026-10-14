@@ -251,10 +251,28 @@ li{
     padding-left:20px;
 }
 
+.line-card li{
+    overflow-wrap:anywhere;
+}
+
 .line-container{
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
     gap:12px;
+}
+
+.week-view .line-container{
+    grid-template-columns:minmax(0, 1fr);
+}
+
+@media (max-width: 768px){
+    .week-view{
+        grid-template-columns:minmax(0, 1fr);
+    }
+
+    body:not(.tv-mode) .line-container{
+        grid-template-columns:minmax(0, 1fr);
+    }
 }
 
 .card-header{
@@ -386,7 +404,7 @@ body.tv-mode{
     width:100%;
     max-width:none;
     padding:16px;
-    overflow:hidden;
+    overflow:auto;
 }
 
 .tv-mode .today-card h2{
@@ -407,6 +425,7 @@ body.tv-mode{
     flex-direction:column;
     min-width:0;
     margin:0;
+    overflow:visible;
 }
 
 .tv-mode .line-card h3{
@@ -427,6 +446,7 @@ body.tv-mode{
     font-size:2.625rem;
     font-weight:700;
     line-height:1.35;
+    flex-shrink:0;
 }
 
 .tv-mode .badge{
@@ -435,16 +455,16 @@ body.tv-mode{
     font-size:1.5rem;
 }
 
-@media (max-width: 900px){
+@media (max-width: 1600px), (max-height: 1000px){
     .tv-mode{
+        display:block;
         height:auto;
         min-height:100vh;
         overflow:auto;
     }
 
     .tv-mode .menu-layout{
-        display:flex;
-        flex-direction:column;
+        display:block;
         min-height:calc(100vh - 96px);
     }
 
@@ -454,11 +474,57 @@ body.tv-mode{
     }
 
     .tv-mode .container{
-        flex:auto;
+        display:block;
+        flex:none;
+        min-height:auto;
+    }
+
+    .tv-mode .container.today-view{
+        display:block;
     }
 
     .tv-mode .today-card{
+        display:block;
+        flex:none;
         min-height:70vh;
+        overflow:visible;
+    }
+
+    .tv-mode .line-container{
+        display:grid;
+        flex:none;
+        grid-template-columns:minmax(0, 1fr);
+        align-content:start;
+        min-height:0;
+    }
+
+    .tv-mode .line-card{
+        display:block;
+        overflow:visible;
+    }
+
+    .tv-mode .line-card ul{
+        display:block;
+        flex:none;
+        justify-content:initial;
+    }
+
+    .tv-mode .today-card h2{
+        font-size:2.6rem;
+    }
+
+    .tv-mode .line-card h3{
+        font-size:2rem;
+    }
+
+    .tv-mode li{
+        font-size:1.6rem;
+    }
+
+    .tv-mode .badge{
+        padding:3px 7px;
+        margin-left:4px;
+        font-size:.95rem;
     }
 }
 
@@ -493,7 +559,7 @@ body.tv-mode{
 
     .tv-mode .today-card h2{
         margin-bottom:6px;
-        font-size:2.8rem;
+        font-size:2.2rem;
     }
 
     .tv-mode .line-card h3,
@@ -503,15 +569,15 @@ body.tv-mode{
     }
 
     .tv-mode .line-card h3{
-        font-size:2.4rem;
+        font-size:1.8rem;
     }
 
     .tv-mode li{
-        font-size:2.175rem;
+        font-size:1.4rem;
     }
 
     .tv-mode .badge{
-        font-size:1.275rem;
+        font-size:.85rem;
     }
 }
 

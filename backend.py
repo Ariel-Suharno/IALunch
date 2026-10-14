@@ -313,7 +313,8 @@ def get_line(food):
         "popcorn",
         "chips",
         "soda",
-        "diet"
+        "diet",
+        "dole whip"
     ]
 
     if any(word in food for word in academy_eats):
