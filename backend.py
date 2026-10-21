@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
+import json
 import re
+from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -10,6 +12,11 @@ MEAL_PRICES = {
     "Reduced Lunch": "$0.00",
     "Adult Lunch": "$5.25",
     "Extra Milk": "$0.75"
+}
+
+CHEF_SELECTION_CATEGORIES = {
+    "Chef Selection Hot Sandwich",
+    "Chef Selection Crispy Chicken Basket",
 }
 
 
@@ -77,104 +84,43 @@ def clean(text):
     return text
 
 
-def get_diet_badge(food):
-    food = food.lower()
+def get_item_allergens(item):
+    allergens = []
+    for allergen in item.get("allergens", []):
+        value = allergen.get("value")
+        if value is not True and str(value).casefold() not in {"true", "1", "yes"}:
+            continue
 
-    meat = [
-        "chicken",
-        "beef",
-        "turkey",
-        "pepperoni",
-        "ham",
-        "sausage",
-        "shrimp",
-        "burger",
-        "hot dog",
-        "nuggets",
-        "drumstick",
-        "meat lovers",
-        "kielbasa",
-        "corndog",
-        "grande",
-        "wings",
-        "bbq"
+        name = allergen.get("name", "").strip()
+        if name:
+            name = re.sub(r"^[A-Z]{1,3}\s*-\s*(?=processed in )", "", name, flags=re.IGNORECASE)
+            if name.casefold().startswith("processed in "):
+                name = name[0].upper() + name[1:]
+            allergens.append(name)
+
+    no_major_allergens = [
+        name for name in allergens
+        if name.casefold() == "no major allergens"
     ]
-
-    dairy = [
-        "cheese",
-        "yogurt",
-        "milk",
-        "mozzarella",
-        "parmesan",
-        "stuffed"
+    allergens = [
+        name for name in allergens
+        if name.casefold() != "no major allergens"
     ]
+    if not allergens:
+        allergens = no_major_allergens
 
-    badges = []
+    return list(dict.fromkeys(allergens))
 
-    contains_meat = any(word in food for word in meat)
-    contains_dairy = any(word in food for word in dairy)
 
-    if (
-        not contains_meat
-        and not contains_dairy
-        and any(
-            word in food
-            for word in [
-                "fruit",
-                "broccoli",
-                "beans",
-                "peas",
-                "carrots",
-                "cucumber",
-                "tomatoes",
-                "salad",
-                "corn",
-                "broccoli",
-            ]
-        )
-    ):
-        badges.append("Vegan")
+def get_item_dietary_tags(item):
+    name = item.get("item_Name", "").strip().casefold()
+    item_type = item.get("item_Type", "").strip().casefold()
 
-    if (
-        not contains_meat
-        and (
-            contains_dairy
-            or "pizza" in food
-            or "nachos" in food
-            or "mac n" in food
-        )
-    ):
-        badges.append("Veggie")
-
-    gluten_words = [
-        "bread",
-        "breadstick",
-        "pizza",
-        "cookie",
-        "waffle",
-        "croissant",
-        "pasta",
-        "bun",
-        "burger",
-        "chicken",
-        "shrimp",
-        "mac",
-        "corndog",
-        "nachos",
-        "wings",
-        "sandwich",
-        "fries",
-        "boil",
-        "wheat",
-        "pasta",
-        "jerk",
-        "bake"
-    ]
-
-    if not any(word in food for word in gluten_words):
-        badges.append("GF")
-
-    return badges
+    if "vegan" in item_type or re.search(r"\(vegan\)\s*$", name):
+        return ["Vegan"]
+    if "vegetarian" in item_type or re.search(r"\(v\)\s*$", name):
+        return ["Vegetarian"]
+    return []
 
 
 # Automatically selects the current week's menu.
@@ -246,6 +192,228 @@ def get_current_week_menu():
     return menu
 
 
+def get_mealviewer_week_menu():
+    today = datetime.now()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    start_date = monday.strftime("%m-%d-%Y")
+    end_date = sunday.strftime("%m-%d-%Y")
+    url = (
+        "https://api.mealviewer.com/api/v4/school/"
+        f"InnovationAcademyHigh/{start_date}/{end_date}/1"
+    )
+    request = Request(
+        url,
+        headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            data = json.load(response)
+    except (URLError, TimeoutError, json.JSONDecodeError):
+        return {"Error": ["MealViewer menu is currently unavailable."]}
+
+    menu = {}
+    for schedule in data.get("menuSchedules", []):
+        date_info = schedule.get("dateInformation", {})
+        date = datetime.strptime(date_info["dateFull"][:10], "%Y-%m-%d")
+        if date.weekday() > 4:
+            continue
+
+        foods = []
+        allergens_by_food = {}
+        dietary_by_food = {}
+        chef_selections = {
+            category: [] for category in CHEF_SELECTION_CATEGORIES
+        }
+        seen = set()
+        for block in schedule.get("menuBlocks", []):
+            if block.get("blockName", "").lower() != "lunch":
+                continue
+
+            for line in block.get("cafeteriaLineList", {}).get("data", []):
+                items = line.get("foodItemList", {}).get("data", [])
+                previous_food = None
+                for item in items:
+                    name = item.get("item_Name", "").strip()
+                    item_type = item.get("item_Type", "").strip().lower()
+                    if (
+                        name
+                        and item_type != "condiments"
+                        and item.get("mvS_Visible", True)
+                    ):
+                        category = item.get("item_Type", "").strip()
+                        category_items = chef_selections.get(category)
+                        item_allergens = get_item_allergens(item)
+                        item_dietary_tags = get_item_dietary_tags(item)
+                        if name.lower().startswith(("w/", "with ")):
+                            if previous_food:
+                                foods[-1] += " " + name
+                                combined_food = foods[-1]
+                                allergens_by_food[combined_food] = list(
+                                    dict.fromkeys(
+                                        allergens_by_food.pop(previous_food, [])
+                                        + item_allergens
+                                    )
+                                )
+                                dietary_by_food[combined_food] = list(
+                                    dict.fromkeys(
+                                        dietary_by_food.pop(previous_food, [])
+                                        + item_dietary_tags
+                                    )
+                                )
+                                if (
+                                    category_items
+                                    and category_items[-1] == previous_food
+                                ):
+                                    category_items[-1] = combined_food
+                                elif category_items is not None:
+                                    category_items.append(name)
+                                previous_food = combined_food
+                            else:
+                                foods.append(name)
+                                allergens_by_food[name] = item_allergens
+                                if category_items is not None:
+                                    category_items.append(name)
+                                previous_food = name
+                        else:
+                            if name in seen:
+                                allergens_by_food[name] = list(
+                                    dict.fromkeys(
+                                        allergens_by_food.get(name, [])
+                                        + item_allergens
+                                    )
+                                )
+                                dietary_by_food[name] = list(
+                                    dict.fromkeys(
+                                        dietary_by_food.get(name, [])
+                                        + item_dietary_tags
+                                    )
+                                )
+                                previous_food = name
+                                continue
+                            foods.append(name)
+                            allergens_by_food[name] = item_allergens
+                            if item_dietary_tags:
+                                dietary_by_food[name] = item_dietary_tags
+                            if category_items is not None:
+                                category_items.append(name)
+                            seen.add(name)
+                            previous_food = name
+
+        menu[f"{date.strftime('%A')} {date.day}"] = {
+            "foods": foods,
+            "chef_selections": chef_selections,
+            "allergens": allergens_by_food,
+            "dietary": dietary_by_food,
+        }
+
+    return menu
+
+
+def merge_week_menus(fulton_menu, mealviewer_menu):
+    if fulton_menu.get("Error"):
+        if mealviewer_menu and not mealviewer_menu.get("Error"):
+            return {
+                day: {
+                    "foods": details["foods"],
+                    "allergens": details.get("allergens", {}),
+                    "dietary": details.get("dietary", {}),
+                }
+                for day, details in mealviewer_menu.items()
+            }
+        return fulton_menu
+
+    if mealviewer_menu.get("Error"):
+        mealviewer_menu = {}
+
+    merged_menu = {}
+    days = list(fulton_menu)
+    days.extend(day for day in mealviewer_menu if day not in fulton_menu)
+
+    for day in days:
+        fulton_foods = fulton_menu.get(day, [])
+        mealviewer_data = mealviewer_menu.get(day, {})
+        if isinstance(mealviewer_data, dict):
+            mealviewer_foods = mealviewer_data.get("foods", [])
+            chef_selections = mealviewer_data.get("chef_selections", {})
+            allergens_by_food = mealviewer_data.get("allergens", {})
+            dietary_by_food = mealviewer_data.get("dietary", {})
+        else:
+            mealviewer_foods = []
+            chef_selections = {}
+            allergens_by_food = {}
+            dietary_by_food = {}
+
+        def normalize(food):
+            food = re.sub(r"\s*\([^)]*\)", "", food.casefold())
+            return re.sub(r"[^a-z0-9]", "", food)
+
+        merged_foods = []
+        merged_allergens = {}
+        merged_dietary = {}
+        seen = {}
+
+        def add_food(food, allergens=None, has_allergen_data=False, dietary_tags=None):
+            key = normalize(food)
+            if not key:
+                return
+
+            if key in seen:
+                existing_food = seen[key]
+                if has_allergen_data:
+                    merged_allergens[existing_food] = list(
+                        dict.fromkeys(
+                            merged_allergens.get(existing_food, [])
+                            + (allergens or [])
+                        )
+                    )
+                if dietary_tags:
+                    merged_dietary[existing_food] = list(
+                        dict.fromkeys(
+                            merged_dietary.get(existing_food, []) + dietary_tags
+                        )
+                    )
+                return
+
+            merged_foods.append(food)
+            seen[key] = food
+            if has_allergen_data:
+                merged_allergens[food] = list(allergens or [])
+            if dietary_tags:
+                merged_dietary[food] = list(dict.fromkeys(dietary_tags))
+
+        for food in fulton_foods:
+            category = food.strip()
+            replacements = chef_selections.get(category, [])
+            if replacements:
+                for replacement in replacements:
+                    add_food(
+                        replacement,
+                        allergens_by_food.get(replacement),
+                        replacement in allergens_by_food,
+                        dietary_by_food.get(replacement),
+                    )
+            else:
+                add_food(food)
+
+        for food in mealviewer_foods:
+            add_food(
+                food,
+                allergens_by_food.get(food),
+                food in allergens_by_food,
+                dietary_by_food.get(food),
+            )
+
+        merged_menu[day] = {
+            "foods": merged_foods,
+            "allergens": merged_allergens,
+            "dietary": merged_dietary,
+        }
+
+    return merged_menu
+
+
 def get_line(food):
     food = food.lower()
 
@@ -276,7 +444,9 @@ def get_line(food):
         "ranch",
         "breadstick",
         "mac",
-        "bites"
+        "chipotle bites",
+        "chipotle chicken",
+        "shrimp"
     ]
 
     go_gourmet = [
@@ -285,7 +455,10 @@ def get_line(food):
         "basket",
         "sandwich",
         "hot dog",
-        "corndog"
+        "corndog",
+        "chicken bites",
+        "popcorn chicken",
+        "nashville hot chicken nuggets"
     ]
 
     chop_it = []
@@ -304,7 +477,14 @@ def get_line(food):
         "tomatoes",
         "cucumber",
         "edamame",
-        "cauliflower"
+        "cauliflower",
+        "juice",
+        "cubes",
+        "applesauce",
+        "frozen",
+        "fruit",
+        "tidbits",
+        "frost"
     ]
 
     snacks = [
@@ -320,13 +500,16 @@ def get_line(food):
     if any(word in food for word in academy_eats):
         return "Academy Eats"
 
-    if any(word in food for word in hot_spot):
-        return "Hot Spot"
-
     if any(word in food for word in go_gourmet):
         return "Go Go Gourmet"
 
+    if any(word in food for word in hot_spot):
+        return "Hot Spot"
+
     if any(word in food for word in chop_it):
+        return "Lettuce Chop It"
+
+    if "chef salad" in food or "salad plate" in food:
         return "Lettuce Chop It"
 
     if any(word in food for word in sides):

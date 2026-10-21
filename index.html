@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fulton Menu</title>
+
+<link rel="icon" type="image/svg+xml" href="Phoenix_Vector.svg">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="banner">
+<img
+    src="Phoenix_Vector.svg"
+    class="school-logo"
+    alt="Innovation Academy Logo">
+
+<div class="banner-text">
+<h1 id="menuTitle">Today's Lunch Menu</h1>
+<p>Innovation Academy High School</p>
+</div>
+</div>
+
+<div id="menuLayout" class="menu-layout">
+<div class="top-cards">
+<div class="top-card">
+<div class="card-header">Menu Tags</div>
+<div class="card-content">
+${menu_tags}
+</div>
+</div>
+
+<div class="top-card">
+<div class="card-header">Meal Prices</div>
+<div class="card-content">
+${prices}
+</div>
+</div>
+</div>
+
+<div class="menu-content">
+<details class="filter-panel">
+<summary>Filter items by ingredients</summary>
+<div class="filter-content">
+<fieldset>
+<legend>Hide items containing</legend>
+<div class="filter-options">
+${filters}
+</div>
+</fieldset>
+<div class="filter-actions">
+<button type="button" onclick="clearIngredientFilters()">Clear filters</button>
+</div>
+</div>
+</details>
+
+<button
+    id="weekButton"
+    class="menu-toggle"
+    onclick="toggleWeek()">
+    Show Full Week
+</button>
+
+<script>
+function applyIngredientFilters() {
+    const excludedTags = new Set(
+        Array.from(document.querySelectorAll('.ingredient-filter:checked'))
+            .map(input => input.value)
+    );
+
+    document.querySelectorAll('.menu-item').forEach(item => {
+        const tags = JSON.parse(item.dataset.tags || '[]');
+        item.hidden = tags.some(tag => excludedTags.has(tag));
+    });
+
+    document.querySelectorAll('.line-card').forEach(lineCard => {
+        const items = Array.from(lineCard.querySelectorAll('.menu-item'));
+        if (items.length) {
+            lineCard.hidden = items.every(item => item.hidden);
+        }
+    });
+
+    document.querySelectorAll('.today-card, .future-day').forEach(dayCard => {
+        const lineCards = Array.from(dayCard.querySelectorAll('.line-card'))
+            .filter(lineCard => lineCard.querySelector('.menu-item'));
+        if (lineCards.length) {
+            dayCard.hidden = lineCards.every(lineCard => lineCard.hidden);
+        }
+    });
+}
+
+function clearIngredientFilters() {
+    document.querySelectorAll('.ingredient-filter').forEach(input => {
+        input.checked = false;
+    });
+    applyIngredientFilters();
+}
+
+function toggleWeek() {
+    const container = document.querySelector('.container');
+    const hiddenCards = document.querySelectorAll('.future-day');
+    const btn = document.getElementById('weekButton');
+    const title = document.getElementById('menuTitle');
+    const hidden = !container.classList.contains('week-view');
+
+    hiddenCards.forEach(card => {
+        card.style.display = hidden ? 'block' : 'none';
+    });
+
+    if (hidden) {
+        btn.innerText = 'Show Only Today';
+        title.innerText = "This Week's Lunch Menu";
+        container.classList.remove('today-view');
+        container.classList.add('week-view');
+    } else {
+        btn.innerText = 'Show Full Week';
+        title.innerText = "Today's Lunch Menu";
+        container.classList.remove('week-view');
+        container.classList.add('today-view');
+    }
+}
+</script>
+
+${menu}
+</div>
+</div>
+
+</body>
+</html>
