@@ -98,18 +98,10 @@ def get_item_allergens(item):
                 name = name[0].upper() + name[1:]
             allergens.append(name)
 
-    no_major_allergens = [
-        name for name in allergens
-        if name.casefold() == "no major allergens"
-    ]
-    allergens = [
+    return list(dict.fromkeys(
         name for name in allergens
         if name.casefold() != "no major allergens"
-    ]
-    if not allergens:
-        allergens = no_major_allergens
-
-    return list(dict.fromkeys(allergens))
+    ))
 
 
 def get_item_dietary_tags(item):
@@ -221,6 +213,7 @@ def get_mealviewer_week_menu():
             continue
 
         foods = []
+        snacks = []
         allergens_by_food = {}
         dietary_by_food = {}
         chef_selections = {
@@ -228,8 +221,10 @@ def get_mealviewer_week_menu():
         }
         seen = set()
         for block in schedule.get("menuBlocks", []):
-            if block.get("blockName", "").lower() != "lunch":
+            block_name = block.get("blockName", "").casefold()
+            if block_name not in {"lunch", "a la carte"}:
                 continue
+            is_snack = block_name == "a la carte"
 
             for line in block.get("cafeteriaLineList", {}).get("data", []):
                 items = line.get("foodItemList", {}).get("data", [])
@@ -269,12 +264,19 @@ def get_mealviewer_week_menu():
                                     category_items[-1] = combined_food
                                 elif category_items is not None:
                                     category_items.append(name)
+                                if is_snack:
+                                    if previous_food in snacks:
+                                        snacks[snacks.index(previous_food)] = combined_food
+                                    elif combined_food not in snacks:
+                                        snacks.append(combined_food)
                                 previous_food = combined_food
                             else:
                                 foods.append(name)
                                 allergens_by_food[name] = item_allergens
                                 if category_items is not None:
                                     category_items.append(name)
+                                if is_snack and name not in snacks:
+                                    snacks.append(name)
                                 previous_food = name
                         else:
                             if name in seen:
@@ -290,6 +292,8 @@ def get_mealviewer_week_menu():
                                         + item_dietary_tags
                                     )
                                 )
+                                if is_snack and name not in snacks:
+                                    snacks.append(name)
                                 previous_food = name
                                 continue
                             foods.append(name)
@@ -298,11 +302,14 @@ def get_mealviewer_week_menu():
                                 dietary_by_food[name] = item_dietary_tags
                             if category_items is not None:
                                 category_items.append(name)
+                            if is_snack:
+                                snacks.append(name)
                             seen.add(name)
                             previous_food = name
 
         menu[f"{date.strftime('%A')} {date.day}"] = {
             "foods": foods,
+            "snacks": snacks,
             "chef_selections": chef_selections,
             "allergens": allergens_by_food,
             "dietary": dietary_by_food,
@@ -317,6 +324,7 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             return {
                 day: {
                     "foods": details["foods"],
+                    "snacks": details.get("snacks", []),
                     "allergens": details.get("allergens", {}),
                     "dietary": details.get("dietary", {}),
                 }
@@ -339,11 +347,13 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             chef_selections = mealviewer_data.get("chef_selections", {})
             allergens_by_food = mealviewer_data.get("allergens", {})
             dietary_by_food = mealviewer_data.get("dietary", {})
+            snack_foods = set(mealviewer_data.get("snacks", []))
         else:
             mealviewer_foods = []
             chef_selections = {}
             allergens_by_food = {}
             dietary_by_food = {}
+            snack_foods = set()
 
         def normalize(food):
             food = re.sub(r"\s*\([^)]*\)", "", food.casefold())
@@ -352,15 +362,18 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
         merged_foods = []
         merged_allergens = {}
         merged_dietary = {}
+        merged_snacks = []
         seen = {}
 
-        def add_food(food, allergens=None, has_allergen_data=False, dietary_tags=None):
+        def add_food(food, allergens=None, has_allergen_data=False, dietary_tags=None, is_snack=False):
             key = normalize(food)
             if not key:
                 return
 
             if key in seen:
                 existing_food = seen[key]
+                if is_snack and existing_food not in merged_snacks:
+                    merged_snacks.append(existing_food)
                 if has_allergen_data:
                     merged_allergens[existing_food] = list(
                         dict.fromkeys(
@@ -378,6 +391,8 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
 
             merged_foods.append(food)
             seen[key] = food
+            if is_snack:
+                merged_snacks.append(food)
             if has_allergen_data:
                 merged_allergens[food] = list(allergens or [])
             if dietary_tags:
@@ -403,10 +418,12 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                 allergens_by_food.get(food),
                 food in allergens_by_food,
                 dietary_by_food.get(food),
+                food in snack_foods,
             )
 
         merged_menu[day] = {
             "foods": merged_foods,
+            "snacks": merged_snacks,
             "allergens": merged_allergens,
             "dietary": merged_dietary,
         }

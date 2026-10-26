@@ -21,9 +21,6 @@ def render_item_badges(allergens, dietary_tags=()):
         for tag in dietary_tags
     ]
 
-    if not allergens:
-        allergens = ["Allergen data unavailable"]
-
     for allergen in allergens:
         badges.append(
             f'<span class="badge allergen">{escape(allergen)}</span>'
@@ -64,11 +61,7 @@ def render_allergen_legend(menu):
 
 
 def render_filter_options(menu):
-    tags = [
-        tag for tag in get_menu_tags(menu)
-        if tag.casefold() != "no major allergens"
-        and tag.casefold() != "allergen data unavailable"
-    ]
+    tags = get_menu_tags(menu)
     return "".join(
         '<label class="filter-option">'
         f'<input type="checkbox" class="ingredient-filter" '
@@ -105,10 +98,12 @@ def render_menu(menu):
                 foods = day_data.get("foods", [])
                 allergens_by_food = day_data.get("allergens", {})
                 dietary_by_food = day_data.get("dietary", {})
+                snack_foods = set(day_data.get("snacks", []))
             else:
                 foods = day_data
                 allergens_by_food = {}
                 dietary_by_food = {}
+                snack_foods = set()
 
             if day.startswith(today_name):
                 card_class = 'class="card today-card"'
@@ -129,7 +124,7 @@ def render_menu(menu):
 
             lines = {}
             for food in dict.fromkeys(foods):
-                line_name = get_line(food)
+                line_name = "Snacks" if food in snack_foods else get_line(food)
                 lines.setdefault(line_name, []).append(food)
 
             lines.setdefault("Lettuce Chop It", []).append("Salad Bar")
@@ -144,10 +139,7 @@ def render_menu(menu):
                 )
                 for food in lines[line_name]:
                     allergens = allergens_by_food.get(food, [])
-                    filter_tags = [
-                        tag for tag in allergens
-                        if tag.casefold() != "no major allergens"
-                    ]
+                    filter_tags = allergens
                     output.append(
                         f'<li class="menu-item" '
                         f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
