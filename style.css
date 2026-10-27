@@ -1,3 +1,18 @@
+:root{
+    --allergen-color-milk:#176c69;
+    --allergen-color-egg:#8a641d;
+    --allergen-color-wheat:#365d91;
+    --allergen-color-soy:#38664b;
+    --allergen-color-peanut:#9b4a35;
+    --allergen-color-sesame:#66518a;
+    --allergen-color-tree-nut:#596e38;
+    --allergen-color-fish:#276b86;
+    --allergen-color-shellfish:#a03f46;
+    --allergen-color-beef:#753a32;
+    --allergen-color-pork:#934a74;
+    --allergen-color-other:#596579;
+}
+
 body{
     font-family:Arial,sans-serif;
     background:#eef2f7;
@@ -60,12 +75,27 @@ li{
 }
 
 .today-card{
-    max-width:900px;
-    width:auto;
+    width:100%;
+    max-width:700px;
+    box-sizing:border-box;
+}
+
+.week-view .today-card{
+    max-width:none;
 }
 
 .today-card ul{
     text-align:left;
+}
+
+.allergen-warning{
+    margin:0 0 12px;
+    padding:9px 12px;
+    border-left:4px solid #8a641d;
+    border-radius:4px;
+    background:#fff3cd;
+    color:#5f4612;
+    font-size:.95rem;
 }
 
 .badge{
@@ -81,7 +111,55 @@ li{
 }
 
 .allergen{
-    background:#3d79b3;
+    background:var(--allergen-color-other);
+}
+
+.allergen-milk{
+    background:var(--allergen-color-milk);
+}
+
+.allergen-egg{
+    background:var(--allergen-color-egg);
+}
+
+.allergen-wheat{
+    background:var(--allergen-color-wheat);
+}
+
+.allergen-soy{
+    background:var(--allergen-color-soy);
+}
+
+.allergen-peanut{
+    background:var(--allergen-color-peanut);
+}
+
+.allergen-sesame{
+    background:var(--allergen-color-sesame);
+}
+
+.allergen-tree-nut{
+    background:var(--allergen-color-tree-nut);
+}
+
+.allergen-fish{
+    background:var(--allergen-color-fish);
+}
+
+.allergen-shellfish{
+    background:var(--allergen-color-shellfish);
+}
+
+.allergen-beef{
+    background:var(--allergen-color-beef);
+}
+
+.allergen-pork{
+    background:var(--allergen-color-pork);
+}
+
+.allergen-other{
+    background:var(--allergen-color-other);
 }
 
 .dietary{
@@ -238,6 +316,28 @@ li{
     font-size:1.5rem;
     color:#374151;
     border-bottom:1px solid #e5e7eb;
+}
+
+.snack-group-title{
+    margin:0;
+    padding:10px 10px 2px;
+    font-size:1rem;
+    color:#596579;
+}
+
+.snack-dropdown summary{
+    padding:10px;
+    color:#365d91;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.snack-dropdown-content{
+    padding:0 10px 6px;
+}
+
+.line-card ul.snack-group-items{
+    padding:0 10px 8px 30px;
 }
 
 .line-card ul{

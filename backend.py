@@ -160,6 +160,12 @@ def get_current_week_menu():
             menu[current_day] = []
             continue
 
+        if current_day and line.casefold().startswith((
+            "due to supply chain issues",
+            "student meal prices for",
+        )):
+            break
+
         is_day_header = re.fullmatch(
             r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \d{1,2}",
             line
@@ -426,6 +432,9 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             "snacks": merged_snacks,
             "allergens": merged_allergens,
             "dietary": merged_dietary,
+            "allergen_data_unavailable": bool(fulton_foods) and not any(
+                food not in snack_foods for food in mealviewer_foods
+            ),
         }
 
     return merged_menu
@@ -463,7 +472,8 @@ def get_line(food):
         "mac",
         "chipotle bites",
         "chipotle chicken",
-        "shrimp"
+        "shrimp",
+        "jerk chicken topper"
     ]
 
     go_gourmet = [
@@ -501,7 +511,9 @@ def get_line(food):
         "frozen",
         "fruit",
         "tidbits",
-        "frost"
+        "frost",
+        "peaches",
+        "squash"
     ]
 
     snacks = [

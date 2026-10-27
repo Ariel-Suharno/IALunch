@@ -14,6 +14,29 @@ from backend import (
     school_is_out,
 )
 
+SNACK_DROPDOWN_THRESHOLD = 45
+
+
+def get_allergen_badge_class(allergen):
+    allergen_name = allergen.casefold()
+    color_families = (
+        "shellfish",
+        "tree nut",
+        "peanut",
+        "sesame",
+        "wheat",
+        "milk",
+        "egg",
+        "soy",
+        "fish",
+        "beef",
+        "pork",
+    )
+    for family in color_families:
+        if family in allergen_name:
+            return f"allergen-{family.replace(' ', '-')}"
+    return "allergen-other"
+
 
 def render_item_badges(allergens, dietary_tags=()):
     badges = [
@@ -21,12 +44,42 @@ def render_item_badges(allergens, dietary_tags=()):
         for tag in dietary_tags
     ]
 
-    for allergen in allergens:
+    for allergen in allergens or ():
         badges.append(
-            f'<span class="badge allergen">{escape(allergen)}</span>'
+            f'<span class="badge allergen {get_allergen_badge_class(allergen)}">'
+            f'{escape(allergen)}</span>'
         )
 
     return " ".join(badges)
+
+
+def get_snack_category(food):
+    name = food.casefold()
+    if any(term in name for term in ("ice cream", "icecream", "sundae")):
+        return "Ice Cream"
+
+    drink_terms = (
+        "beverage", "20oz", "10oz", "soda", "coke", "cola", "gatorade",
+        "juice", "tea", "lemonade", "latte", "powerade", "sprite", "fanta",
+        "mello yello", "pibb", "sparkling ice", "vitamin water", "dasani",
+        "propel", "smartwater", "water",
+    )
+    if any(term in name for term in drink_terms):
+        return "Drinks"
+    return "Snacks"
+
+
+def render_menu_item(food, allergens_by_food, dietary_by_food):
+    allergens = allergens_by_food.get(food)
+    filter_tags = allergens or []
+    dietary_tags = dietary_by_food.get(food, [])
+    return (
+        f'<li class="menu-item" '
+        f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
+        f'{escape(food)} '
+        f'{render_item_badges(allergens, dietary_tags)}'
+        '</li>'
+    )
 
 
 def get_menu_tags(menu):
@@ -48,7 +101,8 @@ def render_allergen_legend(menu):
         for tag in item_tags
     }
     badges = [
-        f'<span class="badge allergen">{escape(tag)}</span>'
+        f'<span class="badge allergen {get_allergen_badge_class(tag)}">'
+        f'{escape(tag)}</span>'
         for tag in tags
     ]
     badges.extend(
@@ -99,11 +153,16 @@ def render_menu(menu):
                 allergens_by_food = day_data.get("allergens", {})
                 dietary_by_food = day_data.get("dietary", {})
                 snack_foods = set(day_data.get("snacks", []))
+                allergen_data_unavailable = day_data.get(
+                    "allergen_data_unavailable",
+                    False,
+                )
             else:
                 foods = day_data
                 allergens_by_food = {}
                 dietary_by_food = {}
                 snack_foods = set()
+                allergen_data_unavailable = False
 
             if day.startswith(today_name):
                 card_class = 'class="card today-card"'
@@ -113,6 +172,12 @@ def render_menu(menu):
             day_name, day_number = day.split()
             pretty_day = f"{day_name} ({current_month} {day_number})"
             output.append(f'<div {card_class}><h2>{pretty_day}</h2>')
+            if allergen_data_unavailable:
+                output.append(
+                    '<p class="allergen-warning" role="status">'
+                    'Allergen information is unavailable for this day.'
+                    '</p>'
+                )
 
             if school_is_out(foods):
                 output.append(
@@ -135,19 +200,56 @@ def render_menu(menu):
                     continue
 
                 output.append(
-                    f'<div class="line-card"><h3>{line_name}</h3><ul>'
+                    f'<div class="line-card"><h3>{line_name}</h3>'
                 )
-                for food in lines[line_name]:
-                    allergens = allergens_by_food.get(food, [])
-                    filter_tags = allergens
-                    output.append(
-                        f'<li class="menu-item" '
-                        f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
-                        f'{escape(food)} '
-                        f'{render_item_badges(allergens_by_food.get(food), dietary_by_food.get(food, []))}'
-                        '</li>'
+                if line_name == "Snacks":
+                    large_snack_list = (
+                        len(snack_foods) > SNACK_DROPDOWN_THRESHOLD
                     )
-                output.append('</ul></div>')
+                    if large_snack_list:
+                        output.append(
+                            '<details class="snack-dropdown">'
+                            f'<summary>View {len(snack_foods)} snack items</summary>'
+                            '<div class="snack-dropdown-content">'
+                        )
+
+                    snack_groups = {
+                        category: []
+                        for category in ("Snacks", "Drinks", "Ice Cream")
+                    }
+                    for food in lines[line_name]:
+                        snack_groups[get_snack_category(food)].append(food)
+
+                    for category, foods_in_category in snack_groups.items():
+                        if not foods_in_category:
+                            continue
+                        output.append(
+                            f'<h4 class="snack-group-title">{category}</h4>'
+                            '<ul class="snack-group-items">'
+                        )
+                        output.extend(
+                            render_menu_item(
+                                food,
+                                allergens_by_food,
+                                dietary_by_food,
+                            )
+                            for food in foods_in_category
+                        )
+                        output.append('</ul>')
+                    if large_snack_list:
+                        output.append('</div></details>')
+                    output.append('</div>')
+                else:
+                    output.append('<ul>')
+                    for food in lines[line_name]:
+                        output.append(
+                            render_menu_item(
+                                food,
+                                allergens_by_food,
+                                dietary_by_food,
+                            )
+                        )
+                    output.append('</ul></div>')
             output.append('</div></div>')
 
     output.append('</div>')
