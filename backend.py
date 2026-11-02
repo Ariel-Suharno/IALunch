@@ -17,6 +17,7 @@ MEAL_PRICES = {
 CHEF_SELECTION_CATEGORIES = {
     "Chef Selection Hot Sandwich",
     "Chef Selection Crispy Chicken Basket",
+    "Chef Selection Bites",
 }
 
 
@@ -443,6 +444,9 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
 def get_line(food):
     food = food.lower()
 
+    if "baked beans" in food:
+        return "Sides"
+
     academy_eats = [
         "nacho",
         "teriyaki",
@@ -483,9 +487,13 @@ def get_line(food):
         "sandwich",
         "hot dog",
         "corndog",
+        "chef selection bites",
         "chicken bites",
         "popcorn chicken",
-        "nashville hot chicken nuggets"
+        "nashville hot chicken nuggets",
+        "stuffing",
+        "roasted turkey",
+        "chicken gravy"
     ]
 
     chop_it = []
