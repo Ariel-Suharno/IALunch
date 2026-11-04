@@ -558,23 +558,22 @@ def get_line(food):
     return "Other"
 
 
-def school_is_out(foods):
-    ignore_words = [
-        "milk",
-        "breakfast",
-        "lunch",
-        "adult",
-        "reduced"
-    ]
+def is_menu_metadata(food):
+    ignore_words = ("milk", "breakfast", "lunch", "adult", "reduced")
+    text = food.casefold()
+    return any(word in text for word in ignore_words)
 
-    real_food_count = 0
+
+def school_is_out(foods):
+    return sum(not is_menu_metadata(food) for food in foods) <= 1
+
+
+def get_school_closure_reason(foods):
+    if not school_is_out(foods):
+        return None
 
     for food in foods:
-        text = food.lower()
+        if not is_menu_metadata(food):
+            return food.strip() or None
 
-        if any(word in text for word in ignore_words):
-            continue
-
-        real_food_count += 1
-
-    return real_food_count <= 1
+    return None

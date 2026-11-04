@@ -10,6 +10,7 @@ from backend import (
     get_current_week_menu,
     get_line,
     get_mealviewer_week_menu,
+    get_school_closure_reason,
     merge_week_menus,
     school_is_out,
 )
@@ -172,20 +173,29 @@ def render_menu(menu):
             day_name, day_number = day.split()
             pretty_day = f"{day_name} ({current_month} {day_number})"
             output.append(f'<div {card_class}><h2>{pretty_day}</h2>')
+
+            if school_is_out(foods):
+                closure_reason = get_school_closure_reason(foods)
+                output.append(
+                    '<div class="line-card"><h3>School Closed</h3>'
+                    '<ul><li>No lunch menu available.'
+                    ' Have a nice break!'
+                )
+                if closure_reason:
+                    output.append(
+                        '<ul>'
+                        f'<li>Reason: {escape(closure_reason)}</li>'
+                        '</ul>'
+                    )
+                output.append('</li></ul></div></div>')
+                continue
+
             if allergen_data_unavailable:
                 output.append(
                     '<p class="allergen-warning" role="status">'
                     'Allergen information is unavailable for this day.'
                     '</p>'
                 )
-
-            if school_is_out(foods):
-                output.append(
-                    '<div class="line-card"><h3>School Closed</h3>'
-                    '<ul><li>No lunch menu available. Have a nice break!</li>'
-                    '</ul></div></div>'
-                )
-                continue
 
             lines = {}
             for food in dict.fromkeys(foods):
