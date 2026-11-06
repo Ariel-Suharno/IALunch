@@ -477,7 +477,8 @@ def get_line(food):
         "chipotle bites",
         "chipotle chicken",
         "shrimp",
-        "jerk chicken topper"
+        "jerk chicken topper",
+        "gyros"
     ]
 
     go_gourmet = [

@@ -25,29 +25,73 @@
 <div id="menuLayout" class="menu-layout">
 <div class="top-cards">
 <div class="top-card">
-<div class="card-header">Menu Tags</div>
-<div class="card-content">
+<div class="info-tabs" role="tablist" aria-label="Menu information" aria-orientation="vertical" onkeydown="handleInfoTabKeydown(event)">
+<button
+    type="button"
+    id="menuTagsTab"
+    class="info-tab"
+    role="tab"
+    aria-selected="true"
+    aria-controls="menuTagsPanel"
+    tabindex="0"
+    onclick="selectInfoTab(this)">
+    Menu Tags
+</button>
+<button
+    type="button"
+    id="mealPricesTab"
+    class="info-tab"
+    role="tab"
+    aria-selected="false"
+    aria-controls="mealPricesPanel"
+    tabindex="-1"
+    onclick="selectInfoTab(this)">
+    Meal Prices
+</button>
+<button
+    type="button"
+    id="specialDietsTab"
+    class="info-tab"
+    role="tab"
+    aria-selected="false"
+    aria-controls="specialDietsPanel"
+    tabindex="-1"
+    onclick="selectInfoTab(this)">
+    Special Dietary Accommodations
+</button>
+</div>
+<section
+    id="menuTagsPanel"
+    class="info-panel"
+    role="tabpanel"
+    aria-labelledby="menuTagsTab"
+    tabindex="0">
 ${menu_tags}
-</div>
-</div>
-
-<div class="top-card">
-<div class="card-header">Meal Prices</div>
-<div class="card-content">
+</section>
+<section
+    id="mealPricesPanel"
+    class="info-panel"
+    role="tabpanel"
+    aria-labelledby="mealPricesTab"
+    tabindex="0"
+    hidden>
 ${prices}
-</div>
-</div>
-
-<div class="top-card">
-<div class="card-header">Special Dietary Accommodations</div>
-<div class="card-content">
+</section>
+<section
+    id="specialDietsPanel"
+    class="info-panel"
+    role="tabpanel"
+    aria-labelledby="specialDietsTab"
+    tabindex="0"
+    hidden>
 <p>Students requesting special treatment for a food allergy must submit an official doctor's form. This request is for medically necessary allergy accommodations when cross-contact could cause a fatal reaction, not for religious or personal dietary preferences.</p>
 <a href="https://nutrition.fultonschools.org/SpecialDiets" target="_blank" rel="noopener noreferrer">Special Diet Form</a>
-</div>
+</section>
 </div>
 </div>
 
 <div class="menu-content">
+<div class="menu-controls">
 <details class="filter-panel">
 <summary>Filter items by ingredients</summary>
 <div class="filter-content">
@@ -69,8 +113,44 @@ ${filters}
     onclick="toggleWeek()">
     Show Full Week
 </button>
+</div>
 
 <script>
+function selectInfoTab(tab, focus = false) {
+    document.querySelectorAll('.info-tab').forEach(infoTab => {
+        const selected = infoTab === tab;
+        infoTab.setAttribute('aria-selected', selected);
+        infoTab.tabIndex = selected ? 0 : -1;
+        document.getElementById(infoTab.getAttribute('aria-controls')).hidden =
+            !selected;
+    });
+
+    if (focus) {
+        tab.focus();
+    }
+}
+
+function handleInfoTabKeydown(event) {
+    const tabs = Array.from(document.querySelectorAll('.info-tab'));
+    const currentIndex = tabs.indexOf(document.activeElement);
+    let nextIndex;
+
+    if (event.key === 'ArrowDown') {
+        nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (event.key === 'ArrowUp') {
+        nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    } else if (event.key === 'Home') {
+        nextIndex = 0;
+    } else if (event.key === 'End') {
+        nextIndex = tabs.length - 1;
+    } else {
+        return;
+    }
+
+    event.preventDefault();
+    selectInfoTab(tabs[nextIndex], true);
+}
+
 function applyIngredientFilters() {
     const excludedTags = new Set(
         Array.from(document.querySelectorAll('.ingredient-filter:checked'))

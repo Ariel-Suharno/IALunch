@@ -2,6 +2,7 @@ from datetime import datetime
 from html import escape
 import json
 import os
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from string import Template
 
@@ -56,7 +57,10 @@ def render_item_badges(allergens, dietary_tags=()):
 
 def get_snack_category(food):
     name = food.casefold()
-    if any(term in name for term in ("ice cream", "icecream", "sundae")):
+    if any(
+        re.search(rf"(?<!\w){re.escape(term)}(?!\w)", name)
+        for term in ("ice cream", "icecream", "sundae")
+    ):
         return "Ice Cream"
 
     drink_terms = (
@@ -65,7 +69,10 @@ def get_snack_category(food):
         "mello yello", "pibb", "sparkling ice", "vitamin water", "dasani",
         "propel", "smartwater", "water",
     )
-    if any(term in name for term in drink_terms):
+    if any(
+        re.search(rf"(?<!\w){re.escape(term)}(?!\w)", name)
+        for term in drink_terms
+    ):
         return "Drinks"
     return "Snacks"
 
