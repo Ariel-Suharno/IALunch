@@ -31,8 +31,11 @@ def get_allergen_badge_class(allergen):
         "egg",
         "soy",
         "fish",
+        "seafood",
         "beef",
         "pork",
+        "chicken",
+        "turkey",
     )
     for family in color_families:
         if family in allergen_name:
@@ -40,11 +43,29 @@ def get_allergen_badge_class(allergen):
     return "allergen-other"
 
 
+def get_dietary_badge_class(tag):
+    tag_name = str(tag).strip()
+    tag_key = tag_name.casefold()
+    if tag_key in {"vegan", "vegetarian"}:
+        return "dietary"
+
+    color_class = get_allergen_badge_class(tag_name)
+    if color_class != "allergen-other":
+        return color_class
+
+    return "dietary"
+
+
 def render_item_badges(allergens, dietary_tags=()):
-    badges = [
-        f'<span class="badge dietary">{escape(tag)}</span>'
-        for tag in dietary_tags
-    ]
+    badges = []
+    for tag in dietary_tags:
+        badge_class = get_dietary_badge_class(tag)
+        if badge_class == "dietary":
+            badges.append(f'<span class="badge dietary">{escape(tag)}</span>')
+        else:
+            badges.append(
+                f'<span class="badge allergen {badge_class}">{escape(tag)}</span>'
+            )
 
     for allergen in allergens or ():
         badges.append(
@@ -78,9 +99,9 @@ def get_snack_category(food):
 
 
 def render_menu_item(food, allergens_by_food, dietary_by_food):
-    allergens = allergens_by_food.get(food)
-    filter_tags = allergens or []
+    allergens = allergens_by_food.get(food, [])
     dietary_tags = dietary_by_food.get(food, [])
+    filter_tags = list(dict.fromkeys([*allergens, *dietary_tags]))
     return (
         f'<li class="menu-item" '
         f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
@@ -96,6 +117,8 @@ def get_menu_tags(menu):
         if isinstance(day_data, dict):
             for item_allergens in day_data.get("allergens", {}).values():
                 tags.update(item_allergens)
+            for item_tags in day_data.get("dietary", {}).values():
+                tags.update(item_tags)
     return sorted(tags)
 
 
@@ -108,15 +131,20 @@ def render_allergen_legend(menu):
         for item_tags in day_data.get("dietary", {}).values()
         for tag in item_tags
     }
-    badges = [
-        f'<span class="badge allergen {get_allergen_badge_class(tag)}">'
-        f'{escape(tag)}</span>'
-        for tag in tags
-    ]
-    badges.extend(
-        f'<span class="badge dietary">{escape(tag)}</span>'
-        for tag in sorted(dietary_tags)
-    )
+    legend_tags = sorted({*tags, *dietary_tags}, key=lambda value: value.casefold())
+    badges = []
+    seen = set()
+    for tag in legend_tags:
+        if tag in seen:
+            continue
+        seen.add(tag)
+        badge_class = get_dietary_badge_class(tag)
+        if badge_class == "dietary":
+            badges.append(f'<span class="badge dietary">{escape(tag)}</span>')
+        else:
+            badges.append(
+                f'<span class="badge allergen {badge_class}">{escape(tag)}</span>'
+            )
     if not badges:
         badges.append('<span class="badge allergen">No tags available</span>')
     return '<div class="tag-list">' + " ".join(badges) + '</div>'
@@ -179,6 +207,13 @@ def render_menu(menu):
 
             day_name, day_number = day.split()
             pretty_day = f"{day_name} ({current_month} {day_number})"
+            thanksgiving = any(
+                food.casefold() == "thanksgiving"
+                for food in foods
+            )
+            if thanksgiving:
+                foods = [food for food in foods if food.casefold() != "thanksgiving"]
+                pretty_day = f"{pretty_day} - Thanksgiving"
             output.append(f'<div {card_class}><h2>{pretty_day}</h2>')
 
             if school_is_out(foods):

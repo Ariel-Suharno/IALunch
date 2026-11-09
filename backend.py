@@ -106,14 +106,58 @@ def get_item_allergens(item):
 
 
 def get_item_dietary_tags(item):
-    name = item.get("item_Name", "").strip().casefold()
+    name = item.get("item_Name", "").strip()
     item_type = item.get("item_Type", "").strip().casefold()
+    normalized_name = name.casefold()
 
-    if "vegan" in item_type or re.search(r"\(vegan\)\s*$", name):
+    if "vegan" in item_type or re.search(r"\(vegan\)\s*$", normalized_name):
         return ["Vegan"]
-    if "vegetarian" in item_type or re.search(r"\(v\)\s*$", name):
-        return ["Vegetarian"]
+
+    if any(marker in normalized_name or marker in item_type for marker in (
+        "vegetarian",
+        "veggie",
+    )):
+        return []
+
     return []
+
+
+def get_item_meat_tags(item):
+    name = item.get("item_Name", "").strip()
+    item_type = item.get("item_Type", "").strip().casefold()
+    normalized_name = name.casefold()
+
+    if any(marker in normalized_name or marker in item_type for marker in (
+        "vegetarian",
+        "veggie",
+        "vegan",
+    )):
+        return []
+
+    specific_meat_terms = (
+        ("beef", "Beef"),
+        ("hamburger", "Beef"),
+        ("meatball", "Beef"),
+        ("meatloaf", "Beef"),
+        ("chicken", "Chicken"),
+        ("turkey", "Turkey"),
+        ("pork", "Pork"),
+        ("ham", "Pork"),
+        ("bacon", "Pork"),
+        ("sausage", "Pork"),
+        ("fish", "Seafood"),
+        ("shrimp", "Seafood"),
+    )
+
+    tags = []
+    for term, tag in specific_meat_terms:
+        if term in normalized_name or term in item_type:
+            tags.append(tag)
+
+    if not tags and "burger" in normalized_name:
+        tags.append("Beef")
+
+    return list(dict.fromkeys(tags))
 
 
 # Automatically selects the current week's menu.
@@ -248,6 +292,10 @@ def get_mealviewer_week_menu():
                         category_items = chef_selections.get(category)
                         item_allergens = get_item_allergens(item)
                         item_dietary_tags = get_item_dietary_tags(item)
+                        item_meat_tags = get_item_meat_tags(item)
+                        combined_tags = list(dict.fromkeys(
+                            item_dietary_tags + item_meat_tags
+                        ))
                         if name.lower().startswith(("w/", "with ")):
                             if previous_food:
                                 foods[-1] += " " + name
@@ -261,7 +309,7 @@ def get_mealviewer_week_menu():
                                 dietary_by_food[combined_food] = list(
                                     dict.fromkeys(
                                         dietary_by_food.pop(previous_food, [])
-                                        + item_dietary_tags
+                                        + combined_tags
                                     )
                                 )
                                 if (
@@ -296,7 +344,7 @@ def get_mealviewer_week_menu():
                                 dietary_by_food[name] = list(
                                     dict.fromkeys(
                                         dietary_by_food.get(name, [])
-                                        + item_dietary_tags
+                                        + combined_tags
                                     )
                                 )
                                 if is_snack and name not in snacks:
@@ -305,8 +353,8 @@ def get_mealviewer_week_menu():
                                 continue
                             foods.append(name)
                             allergens_by_food[name] = item_allergens
-                            if item_dietary_tags:
-                                dietary_by_food[name] = item_dietary_tags
+                            if combined_tags:
+                                dietary_by_food[name] = combined_tags
                             if category_items is not None:
                                 category_items.append(name)
                             if is_snack:
@@ -364,6 +412,8 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
 
         def normalize(food):
             food = re.sub(r"\s*\([^)]*\)", "", food.casefold())
+            food = re.sub(r"\s+w/\s+.*$", "", food)
+            food = re.sub(r"\s+with\s+.*$", "", food)
             return re.sub(r"[^a-z0-9]", "", food)
 
         merged_foods = []
@@ -379,6 +429,11 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
 
             if key in seen:
                 existing_food = seen[key]
+                if len(food) < len(existing_food):
+                    index = merged_foods.index(existing_food)
+                    merged_foods[index] = food
+                    seen[key] = food
+                    existing_food = food
                 if is_snack and existing_food not in merged_snacks:
                     merged_snacks.append(existing_food)
                 if has_allergen_data:
@@ -406,6 +461,10 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                 merged_dietary[food] = list(dict.fromkeys(dietary_tags))
 
         for food in fulton_foods:
+            if food.strip().lower().startswith("chef selection") and any(
+                "wing" in item.lower() for item in mealviewer_foods
+            ):
+                continue
             category = food.strip()
             replacements = chef_selections.get(category, [])
             if replacements:
@@ -463,7 +522,6 @@ def get_line(food):
         "wings",
         "breaded",
         "pasta",
-        "tender",
         "bbq",
         "wild mikes",
         "parmesan",
@@ -472,13 +530,15 @@ def get_line(food):
         "roll",
         "bake",
         "ranch",
-        "breadstick",
         "mac",
         "chipotle bites",
         "chipotle chicken",
         "shrimp",
         "jerk chicken topper",
-        "gyros"
+        "gyros",
+        "stuffing",
+        "roasted turkey",
+        "chicken gravy"
     ]
 
     go_gourmet = [
@@ -492,9 +552,9 @@ def get_line(food):
         "chicken bites",
         "popcorn chicken",
         "nashville hot chicken nuggets",
-        "stuffing",
-        "roasted turkey",
-        "chicken gravy"
+        "chicken tenders",
+        "tenders",
+        "breadstick"
     ]
 
     chop_it = []
@@ -522,7 +582,11 @@ def get_line(food):
         "tidbits",
         "frost",
         "peaches",
-        "squash"
+        "squash",
+        "potatoes",
+        "peach",
+        "oranges",
+        "apple"
     ]
 
     snacks = [
@@ -538,6 +602,9 @@ def get_line(food):
     if any(word in food for word in academy_eats):
         return "Academy Eats"
 
+    if "chef salad" in food or "salad plate" in food or "salad" in food:
+        return "Lettuce Chop It"
+
     if any(word in food for word in go_gourmet):
         return "Go Go Gourmet"
 
@@ -545,9 +612,6 @@ def get_line(food):
         return "Hot Spot"
 
     if any(word in food for word in chop_it):
-        return "Lettuce Chop It"
-
-    if "chef salad" in food or "salad plate" in food:
         return "Lettuce Chop It"
 
     if any(word in food for word in sides):

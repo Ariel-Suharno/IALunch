@@ -1,15 +1,18 @@
 :root{
     --allergen-color-milk:#006b73;
-    --allergen-color-egg:#8a641d;
+    --allergen-color-egg:#f4d03f;
     --allergen-color-wheat:#365d91;
     --allergen-color-soy:#38664b;
     --allergen-color-peanut:#9b4a35;
     --allergen-color-sesame:#66518a;
     --allergen-color-tree-nut:#65751b;
     --allergen-color-fish:#276b86;
+    --allergen-color-seafood:#276b86;
     --allergen-color-shellfish:#a03f46;
     --allergen-color-beef:#753a32;
     --allergen-color-pork:#934a74;
+    --allergen-color-chicken:#b86a2d;
+    --allergen-color-turkey:#7b5d3b;
     --allergen-color-other:#596579;
 }
 
@@ -218,6 +221,10 @@ li{
     background:var(--allergen-color-fish);
 }
 
+.allergen-seafood{
+    background:var(--allergen-color-seafood);
+}
+
 .allergen-shellfish{
     background:var(--allergen-color-shellfish);
 }
@@ -228,6 +235,14 @@ li{
 
 .allergen-pork{
     background:var(--allergen-color-pork);
+}
+
+.allergen-chicken{
+    background:var(--allergen-color-chicken);
+}
+
+.allergen-turkey{
+    background:var(--allergen-color-turkey);
 }
 
 .allergen-other{
