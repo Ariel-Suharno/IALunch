@@ -151,6 +151,109 @@ function handleInfoTabKeydown(event) {
     selectInfoTab(tabs[nextIndex], true);
 }
 
+const itemInfoStates = new WeakMap();
+
+function getItemInfoState(trigger) {
+    let state = itemInfoStates.get(trigger);
+    if (!state) {
+        const popup = trigger.nextElementSibling;
+        if (!popup || !popup.classList.contains('item-info-content')) {
+            return null;
+        }
+        state = {popup, hovered: false, focused: false};
+        itemInfoStates.set(trigger, state);
+    }
+    return state;
+}
+
+function updateItemInfo(trigger) {
+    const state = getItemInfoState(trigger);
+    if (!state) {
+        return;
+    }
+
+    if (!state.hovered && !state.focused) {
+        state.popup.hidden = true;
+        state.popup.style.removeProperty('left');
+        state.popup.style.removeProperty('top');
+        if (state.popup.parentElement === document.body) {
+            trigger.after(state.popup);
+        }
+        return;
+    }
+
+    if (state.popup.parentElement !== document.body) {
+        document.body.append(state.popup);
+    }
+    state.popup.hidden = false;
+
+    const triggerBounds = trigger.getBoundingClientRect();
+    const popupBounds = state.popup.getBoundingClientRect();
+    const margin = 8;
+    const maxLeft = Math.max(
+        margin,
+        window.innerWidth - popupBounds.width - margin
+    );
+    const left = Math.min(
+        Math.max(margin, triggerBounds.right - popupBounds.width),
+        maxLeft
+    );
+    let top = triggerBounds.bottom + margin;
+    if (top + popupBounds.height > window.innerHeight - margin) {
+        top = triggerBounds.top - popupBounds.height - margin;
+    }
+    top = Math.max(
+        margin,
+        Math.min(top, window.innerHeight - popupBounds.height - margin)
+    );
+
+    state.popup.style.left = left + 'px';
+    state.popup.style.top = top + 'px';
+}
+
+function setItemInfoState(trigger, key, value) {
+    const state = getItemInfoState(trigger);
+    if (!state) {
+        return;
+    }
+    state[key] = value;
+    updateItemInfo(trigger);
+}
+
+function getItemInfoTrigger(target) {
+    return target instanceof Element
+        ? target.closest('.item-info-trigger')
+        : null;
+}
+
+document.addEventListener('pointerover', event => {
+    const trigger = getItemInfoTrigger(event.target);
+    if (trigger && !trigger.contains(event.relatedTarget)) {
+        setItemInfoState(trigger, 'hovered', true);
+    }
+});
+
+document.addEventListener('pointerout', event => {
+    const trigger = getItemInfoTrigger(event.target);
+    if (trigger && !trigger.contains(event.relatedTarget)) {
+        setItemInfoState(trigger, 'hovered', false);
+    }
+});
+
+document.addEventListener('focusin', event => {
+    const trigger = getItemInfoTrigger(event.target);
+    if (trigger) {
+        setItemInfoState(trigger, 'focused', true);
+    }
+});
+
+document.addEventListener('focusout', event => {
+    const trigger = getItemInfoTrigger(event.target);
+    if (trigger) {
+        setItemInfoState(trigger, 'focused', false);
+    }
+});
+
 function applyIngredientFilters() {
     const excludedTags = new Set(
         Array.from(document.querySelectorAll('.ingredient-filter:checked'))

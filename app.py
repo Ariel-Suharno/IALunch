@@ -4,6 +4,7 @@ import json
 import os
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from itertools import count
 from string import Template
 
 from backend import (
@@ -17,6 +18,8 @@ from backend import (
 )
 
 SNACK_DROPDOWN_THRESHOLD = 45
+ITEM_INFO_IDS = count()
+MEAT_TAGS = frozenset({"beef", "chicken", "turkey", "pork", "seafood"})
 
 
 def get_allergen_badge_class(allergen):
@@ -98,15 +101,51 @@ def get_snack_category(food):
     return "Snacks"
 
 
-def render_menu_item(food, allergens_by_food, dietary_by_food):
+def render_menu_item(
+    food,
+    allergens_by_food,
+    dietary_by_food,
+    calories_by_food,
+):
     allergens = allergens_by_food.get(food, [])
-    dietary_tags = dietary_by_food.get(food, [])
-    filter_tags = list(dict.fromkeys([*allergens, *dietary_tags]))
+    item_tags = dietary_by_food.get(food, [])
+    meat_tags = [tag for tag in item_tags if tag.casefold() in MEAT_TAGS]
+    dietary_tags = [tag for tag in item_tags if tag.casefold() not in MEAT_TAGS]
+    filter_tags = list(dict.fromkeys([*allergens, *item_tags]))
+    if allergens:
+        allergen_details = render_item_badges(allergens)
+    elif food in allergens_by_food:
+        allergen_details = "No allergens listed."
+    else:
+        allergen_details = "Allergen information unavailable."
+
+    calories = calories_by_food.get(food)
+    calories_details = (
+        f"{escape(str(calories))} calories"
+        if calories is not None
+        else "Calories unavailable."
+    )
+    meat_details = (
+        '<strong>Meat tags</strong>'
+        f'<div class="item-meat-tags">{render_item_badges((), meat_tags)}</div>'
+        if meat_tags
+        else ""
+    )
+    info_id = f"item-info-{next(ITEM_INFO_IDS)}"
     return (
         f'<li class="menu-item" '
         f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
-        f'{escape(food)} '
-        f'{render_item_badges(allergens, dietary_tags)}'
+        f'<span class="menu-item-label">{escape(food)} '
+        f'{render_item_badges((), dietary_tags)}</span>'
+        f'<button type="button" class="item-info-trigger" '
+        f'aria-label="Show calories, allergens, and meat tags for {escape(food, quote=True)}" '
+        f'aria-describedby="{info_id}">i</button>'
+        f'<div id="{info_id}" class="item-info-content" role="tooltip" hidden>'
+        f'<p>{calories_details}</p>'
+        '<strong>Allergens</strong>'
+        f'<div class="item-allergens">{allergen_details}</div>'
+        f'{meat_details}'
+        '</div>'
         '</li>'
     )
 
@@ -147,7 +186,14 @@ def render_allergen_legend(menu):
             )
     if not badges:
         badges.append('<span class="badge allergen">No tags available</span>')
-    return '<div class="tag-list">' + " ".join(badges) + '</div>'
+    return (
+        '<p class="tag-disclaimer">'
+        'Click or tap the info icon next to a menu item to open its allergens '
+        'and calories. For allergy concerns, contact school nutrition; '
+        'menu information may change.'
+        '</p>'
+        '<div class="tag-list">' + " ".join(badges) + '</div>'
+    )
 
 
 def render_filter_options(menu):
@@ -178,6 +224,7 @@ def render_menu(menu):
             "Hot Spot",
             "Lettuce Chop It",
             "Go Go Gourmet",
+            "Cold Meals (Available in refrigerated section in all lines)",
             "Sides",
             "Snacks",
             "Other",
@@ -188,6 +235,8 @@ def render_menu(menu):
                 foods = day_data.get("foods", [])
                 allergens_by_food = day_data.get("allergens", {})
                 dietary_by_food = day_data.get("dietary", {})
+                calories_by_food = day_data.get("calories", {})
+                cold_meals = set(day_data.get("cold_meals", []))
                 snack_foods = set(day_data.get("snacks", []))
                 allergen_data_unavailable = day_data.get(
                     "allergen_data_unavailable",
@@ -197,6 +246,8 @@ def render_menu(menu):
                 foods = day_data
                 allergens_by_food = {}
                 dietary_by_food = {}
+                calories_by_food = {}
+                cold_meals = set()
                 snack_foods = set()
                 allergen_data_unavailable = False
 
@@ -241,7 +292,12 @@ def render_menu(menu):
 
             lines = {}
             for food in dict.fromkeys(foods):
-                line_name = "Snacks" if food in snack_foods else get_line(food)
+                if food in cold_meals:
+                    line_name = (
+                        "Cold Meals (Available in refrigerated section in all lines)"
+                    )
+                else:
+                    line_name = "Snacks" if food in snack_foods else get_line(food)
                 lines.setdefault(line_name, []).append(food)
 
             lines.setdefault("Lettuce Chop It", []).append("Salad Bar")
@@ -284,6 +340,7 @@ def render_menu(menu):
                                 food,
                                 allergens_by_food,
                                 dietary_by_food,
+                                calories_by_food,
                             )
                             for food in foods_in_category
                         )
@@ -299,6 +356,7 @@ def render_menu(menu):
                                 food,
                                 allergens_by_food,
                                 dietary_by_food,
+                                calories_by_food,
                             )
                         )
                     output.append('</ul></div>')

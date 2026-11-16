@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+import math
 import re
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -105,6 +106,29 @@ def get_item_allergens(item):
     ))
 
 
+def get_item_calories(item):
+    calories = item.get("calories")
+    if calories is None:
+        calories = next(
+            (
+                nutrition.get("value", nutrition.get("rawValue"))
+                for nutrition in item.get("nutritionals", [])
+                if isinstance(nutrition, dict)
+                and nutrition.get("name", "").casefold() == "calories"
+            ),
+            None,
+        )
+
+    try:
+        calories = float(calories)
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(calories) or calories < 0:
+        return None
+    return int(calories) if calories.is_integer() else calories
+
+
 def get_item_dietary_tags(item):
     name = item.get("item_Name", "").strip()
     item_type = item.get("item_Type", "").strip().casefold()
@@ -140,8 +164,10 @@ def get_item_meat_tags(item):
         ("meatball", "Beef"),
         ("meatloaf", "Beef"),
         ("chicken", "Chicken"),
+        ("wing", "Chicken"),
         ("turkey", "Turkey"),
         ("pork", "Pork"),
+        ("pepperoni", "Pork"),
         ("ham", "Pork"),
         ("bacon", "Pork"),
         ("sausage", "Pork"),
@@ -267,6 +293,8 @@ def get_mealviewer_week_menu():
         snacks = []
         allergens_by_food = {}
         dietary_by_food = {}
+        calories_by_food = {}
+        cold_meals = set()
         chef_selections = {
             category: [] for category in CHEF_SELECTION_CATEGORIES
         }
@@ -291,6 +319,7 @@ def get_mealviewer_week_menu():
                         category = item.get("item_Type", "").strip()
                         category_items = chef_selections.get(category)
                         item_allergens = get_item_allergens(item)
+                        item_calories = get_item_calories(item)
                         item_dietary_tags = get_item_dietary_tags(item)
                         item_meat_tags = get_item_meat_tags(item)
                         combined_tags = list(dict.fromkeys(
@@ -300,6 +329,20 @@ def get_mealviewer_week_menu():
                             if previous_food:
                                 foods[-1] += " " + name
                                 combined_food = foods[-1]
+                                previous_calories = calories_by_food.pop(
+                                    previous_food,
+                                    None,
+                                )
+                                if (
+                                    previous_calories is not None
+                                    and item_calories is not None
+                                ):
+                                    calories_by_food[combined_food] = (
+                                        previous_calories + item_calories
+                                    )
+                                if previous_food in cold_meals:
+                                    cold_meals.remove(previous_food)
+                                    cold_meals.add(combined_food)
                                 allergens_by_food[combined_food] = list(
                                     dict.fromkeys(
                                         allergens_by_food.pop(previous_food, [])
@@ -328,6 +371,10 @@ def get_mealviewer_week_menu():
                             else:
                                 foods.append(name)
                                 allergens_by_food[name] = item_allergens
+                                if item_type == "fresh deli subs":
+                                    cold_meals.add(name)
+                                if item_calories is not None:
+                                    calories_by_food[name] = item_calories
                                 if category_items is not None:
                                     category_items.append(name)
                                 if is_snack and name not in snacks:
@@ -335,6 +382,13 @@ def get_mealviewer_week_menu():
                                 previous_food = name
                         else:
                             if name in seen:
+                                if item_type == "fresh deli subs":
+                                    cold_meals.add(name)
+                                if item_calories is not None:
+                                    calories_by_food.setdefault(
+                                        name,
+                                        item_calories,
+                                    )
                                 allergens_by_food[name] = list(
                                     dict.fromkeys(
                                         allergens_by_food.get(name, [])
@@ -353,6 +407,10 @@ def get_mealviewer_week_menu():
                                 continue
                             foods.append(name)
                             allergens_by_food[name] = item_allergens
+                            if item_type == "fresh deli subs":
+                                cold_meals.add(name)
+                            if item_calories is not None:
+                                calories_by_food[name] = item_calories
                             if combined_tags:
                                 dietary_by_food[name] = combined_tags
                             if category_items is not None:
@@ -368,6 +426,10 @@ def get_mealviewer_week_menu():
             "chef_selections": chef_selections,
             "allergens": allergens_by_food,
             "dietary": dietary_by_food,
+            "calories": calories_by_food,
+            "cold_meals": [
+                food for food in foods if food in cold_meals
+            ],
         }
 
     return menu
@@ -382,6 +444,8 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                     "snacks": details.get("snacks", []),
                     "allergens": details.get("allergens", {}),
                     "dietary": details.get("dietary", {}),
+                    "calories": details.get("calories", {}),
+                    "cold_meals": details.get("cold_meals", []),
                 }
                 for day, details in mealviewer_menu.items()
             }
@@ -402,12 +466,16 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             chef_selections = mealviewer_data.get("chef_selections", {})
             allergens_by_food = mealviewer_data.get("allergens", {})
             dietary_by_food = mealviewer_data.get("dietary", {})
+            calories_by_food = mealviewer_data.get("calories", {})
+            cold_meals = set(mealviewer_data.get("cold_meals", []))
             snack_foods = set(mealviewer_data.get("snacks", []))
         else:
             mealviewer_foods = []
             chef_selections = {}
             allergens_by_food = {}
             dietary_by_food = {}
+            calories_by_food = {}
+            cold_meals = set()
             snack_foods = set()
 
         def normalize(food):
@@ -419,10 +487,20 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
         merged_foods = []
         merged_allergens = {}
         merged_dietary = {}
+        merged_calories = {}
+        merged_cold_meals = set()
         merged_snacks = []
         seen = {}
 
-        def add_food(food, allergens=None, has_allergen_data=False, dietary_tags=None, is_snack=False):
+        def add_food(
+            food,
+            allergens=None,
+            has_allergen_data=False,
+            dietary_tags=None,
+            is_snack=False,
+            calories=None,
+            is_cold_meal=False,
+        ):
             key = normalize(food)
             if not key:
                 return
@@ -449,6 +527,10 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                             merged_dietary.get(existing_food, []) + dietary_tags
                         )
                     )
+                if calories is not None:
+                    merged_calories.setdefault(existing_food, calories)
+                if is_cold_meal:
+                    merged_cold_meals.add(existing_food)
                 return
 
             merged_foods.append(food)
@@ -459,6 +541,10 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                 merged_allergens[food] = list(allergens or [])
             if dietary_tags:
                 merged_dietary[food] = list(dict.fromkeys(dietary_tags))
+            if calories is not None:
+                merged_calories[food] = calories
+            if is_cold_meal:
+                merged_cold_meals.add(food)
 
         for food in fulton_foods:
             if food.strip().lower().startswith("chef selection") and any(
@@ -474,6 +560,8 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                         allergens_by_food.get(replacement),
                         replacement in allergens_by_food,
                         dietary_by_food.get(replacement),
+                        calories=calories_by_food.get(replacement),
+                        is_cold_meal=replacement in cold_meals,
                     )
             else:
                 add_food(food)
@@ -485,6 +573,8 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                 food in allergens_by_food,
                 dietary_by_food.get(food),
                 food in snack_foods,
+                calories_by_food.get(food),
+                food in cold_meals,
             )
 
         merged_menu[day] = {
@@ -492,6 +582,10 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             "snacks": merged_snacks,
             "allergens": merged_allergens,
             "dietary": merged_dietary,
+            "calories": merged_calories,
+            "cold_meals": [
+                food for food in merged_foods if food in merged_cold_meals
+            ],
             "allergen_data_unavailable": bool(fulton_foods) and not any(
                 food not in snack_foods for food in mealviewer_foods
             ),
