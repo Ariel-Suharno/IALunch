@@ -49,7 +49,9 @@ def get_allergen_badge_class(allergen):
 def get_dietary_badge_class(tag):
     tag_name = str(tag).strip()
     tag_key = tag_name.casefold()
-    if tag_key in {"vegan", "vegetarian"}:
+    if tag_key == "vegetarian":
+        return "dietary-vegetarian"
+    if tag_key == "vegan":
         return "dietary"
 
     color_class = get_allergen_badge_class(tag_name)
@@ -63,8 +65,8 @@ def render_item_badges(allergens, dietary_tags=()):
     badges = []
     for tag in dietary_tags:
         badge_class = get_dietary_badge_class(tag)
-        if badge_class == "dietary":
-            badges.append(f'<span class="badge dietary">{escape(tag)}</span>')
+        if badge_class.startswith("dietary"):
+            badges.append(f'<span class="badge {badge_class}">{escape(tag)}</span>')
         else:
             badges.append(
                 f'<span class="badge allergen {badge_class}">{escape(tag)}</span>'
@@ -132,20 +134,29 @@ def render_menu_item(
         else ""
     )
     info_id = f"item-info-{next(ITEM_INFO_IDS)}"
+    info_unavailable = food not in allergens_by_food and calories is None
+    info_control = (
+        '<button type="button" class="item-info-trigger item-info-unavailable" '
+        'aria-label="Allergen and calorie information unavailable" disabled>×</button>'
+        if info_unavailable
+        else (
+            f'<button type="button" class="item-info-trigger" '
+            f'aria-label="Show calories, allergens, and meat tags for {escape(food, quote=True)}" '
+            f'aria-describedby="{info_id}">i</button>'
+            f'<div id="{info_id}" class="item-info-content" role="tooltip" hidden>'
+            f'<p>{calories_details}</p>'
+            '<strong>Allergens</strong>'
+            f'<div class="item-allergens">{allergen_details}</div>'
+            f'{meat_details}'
+            '</div>'
+        )
+    )
     return (
         f'<li class="menu-item" '
         f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
         f'<span class="menu-item-label">{escape(food)} '
         f'{render_item_badges((), dietary_tags)}</span>'
-        f'<button type="button" class="item-info-trigger" '
-        f'aria-label="Show calories, allergens, and meat tags for {escape(food, quote=True)}" '
-        f'aria-describedby="{info_id}">i</button>'
-        f'<div id="{info_id}" class="item-info-content" role="tooltip" hidden>'
-        f'<p>{calories_details}</p>'
-        '<strong>Allergens</strong>'
-        f'<div class="item-allergens">{allergen_details}</div>'
-        f'{meat_details}'
-        '</div>'
+        f'{info_control}'
         '</li>'
     )
 
@@ -178,8 +189,8 @@ def render_allergen_legend(menu):
             continue
         seen.add(tag)
         badge_class = get_dietary_badge_class(tag)
-        if badge_class == "dietary":
-            badges.append(f'<span class="badge dietary">{escape(tag)}</span>')
+        if badge_class.startswith("dietary"):
+            badges.append(f'<span class="badge {badge_class}">{escape(tag)}</span>')
         else:
             badges.append(
                 f'<span class="badge allergen {badge_class}">{escape(tag)}</span>'

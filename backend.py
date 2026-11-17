@@ -141,7 +141,7 @@ def get_item_dietary_tags(item):
         "vegetarian",
         "veggie",
     )):
-        return []
+        return ["Vegetarian"]
 
     return []
 

@@ -260,6 +260,11 @@ li{
     background:#a33b2f;
 }
 
+.dietary-vegetarian{
+    background:#147a2e;
+    color:white;
+}
+
 .tag-list{
     display:flex;
     flex-wrap:wrap;
@@ -510,6 +515,10 @@ li{
 .item-info-trigger:focus-visible{
     outline:3px solid #8a641d;
     outline-offset:2px;
+}
+
+.item-info-unavailable{
+    cursor:default;
 }
 
 .item-info-content{
