@@ -15,10 +15,13 @@ MEAL_PRICES = {
     "Extra Milk": "$0.75"
 }
 
+CHEF_SELECTION_SALADS = "Chef Selection Salads"
+
 CHEF_SELECTION_CATEGORIES = {
     "Chef Selection Hot Sandwich",
     "Chef Selection Crispy Chicken Basket",
     "Chef Selection Bites",
+    CHEF_SELECTION_SALADS,
 }
 
 
@@ -186,6 +189,42 @@ def get_item_meat_tags(item):
     return list(dict.fromkeys(tags))
 
 
+def move_leading_continuations(items, is_food_item):
+    leading_continuations = []
+    ordered_items = []
+    found_food = False
+
+    for item in items:
+        if not found_food and is_food_item(item):
+            name = item.get("item_Name", "").strip().casefold()
+            if name.startswith(("w/", "with ")):
+                leading_continuations.append(item)
+                continue
+
+            ordered_items.append(item)
+            ordered_items.extend(leading_continuations)
+            leading_continuations.clear()
+            found_food = True
+        else:
+            ordered_items.append(item)
+
+    ordered_items.extend(leading_continuations)
+    return ordered_items
+
+
+def get_fulton_assorted_category(food):
+    name = food.casefold()
+    if not name.startswith("assorted "):
+        return None
+    if "fruit" in name:
+        return "fruit"
+    if "vegetable" in name or "veggie" in name:
+        return "vegetable"
+    if "juice" in name or "slush" in name:
+        return "juice"
+    return None
+
+
 # Automatically selects the current week's menu.
 def get_current_week_menu():
     html = get_innovation_html()
@@ -197,7 +236,7 @@ def get_current_week_menu():
         if line.strip()
     ]
 
-    #today = datetime.now() - timedelta(days=7)
+    #today = datetime.now() + timedelta(days=14)
     today = datetime.now()
     monday = today - timedelta(days=today.weekday())
     week_headers = []
@@ -224,9 +263,13 @@ def get_current_week_menu():
 
     menu = {}
     current_day = None
+    pending_continuations = []
 
     for line in lines[start_index:]:
         if line in week_headers:
+            if current_day and pending_continuations:
+                menu[current_day].extend(pending_continuations)
+                pending_continuations.clear()
             current_day = line
             menu[current_day] = []
             continue
@@ -247,21 +290,27 @@ def get_current_week_menu():
         item = clean(line)
 
         if item:
-            if (
-                menu[current_day]
-                and (
-                    item.lower().startswith("w/")
-                    or item.lower().startswith("with ")
-                )
-            ):
-                menu[current_day][-1] += " " + item
+            if item.casefold().startswith(("w/", "with ")):
+                if menu[current_day]:
+                    menu[current_day][-1] += " " + item
+                else:
+                    pending_continuations.append(item)
             else:
                 menu[current_day].append(item)
+                if pending_continuations:
+                    menu[current_day][-1] += " " + " ".join(
+                        pending_continuations
+                    )
+                    pending_continuations.clear()
+
+    if current_day and pending_continuations:
+        menu[current_day].extend(pending_continuations)
 
     return menu
 
 
 def get_mealviewer_week_menu():
+    #today = datetime.now() + timedelta(days=14)
     today = datetime.now()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
@@ -295,6 +344,7 @@ def get_mealviewer_week_menu():
         dietary_by_food = {}
         calories_by_food = {}
         cold_meals = set()
+        food_categories = set()
         chef_selections = {
             category: [] for category in CHEF_SELECTION_CATEGORIES
         }
@@ -307,6 +357,20 @@ def get_mealviewer_week_menu():
 
             for line in block.get("cafeteriaLineList", {}).get("data", []):
                 items = line.get("foodItemList", {}).get("data", [])
+                if all(
+                    isinstance(item.get("item_Order_Id"), (int, float))
+                    for item in items
+                ):
+                    items = sorted(items, key=lambda item: item["item_Order_Id"])
+                items = move_leading_continuations(
+                    items,
+                    lambda item: (
+                        bool(item.get("item_Name", "").strip())
+                        and item.get("item_Type", "").strip().casefold()
+                        != "condiments"
+                        and item.get("mvS_Visible", True)
+                    ),
+                )
                 previous_food = None
                 for item in items:
                     name = item.get("item_Name", "").strip()
@@ -316,6 +380,12 @@ def get_mealviewer_week_menu():
                         and item_type != "condiments"
                         and item.get("mvS_Visible", True)
                     ):
+                        if "juice" in item_type:
+                            food_categories.add("juice")
+                        elif "vegetable" in item_type:
+                            food_categories.add("vegetable")
+                        elif "fruit" in item_type:
+                            food_categories.add("fruit")
                         category = item.get("item_Type", "").strip()
                         category_items = chef_selections.get(category)
                         item_allergens = get_item_allergens(item)
@@ -423,7 +493,12 @@ def get_mealviewer_week_menu():
         menu[f"{date.strftime('%A')} {date.day}"] = {
             "foods": foods,
             "snacks": snacks,
+            "food_categories": sorted(food_categories),
             "chef_selections": chef_selections,
+            "line_overrides": {
+                food: "Lettuce Chop It"
+                for food in chef_selections[CHEF_SELECTION_SALADS]
+            },
             "allergens": allergens_by_food,
             "dietary": dietary_by_food,
             "calories": calories_by_food,
@@ -446,6 +521,7 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                     "dietary": details.get("dietary", {}),
                     "calories": details.get("calories", {}),
                     "cold_meals": details.get("cold_meals", []),
+                    "line_overrides": details.get("line_overrides", {}),
                 }
                 for day, details in mealviewer_menu.items()
             }
@@ -469,6 +545,9 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             calories_by_food = mealviewer_data.get("calories", {})
             cold_meals = set(mealviewer_data.get("cold_meals", []))
             snack_foods = set(mealviewer_data.get("snacks", []))
+            mealviewer_categories = set(
+                mealviewer_data.get("food_categories", [])
+            )
         else:
             mealviewer_foods = []
             chef_selections = {}
@@ -477,6 +556,7 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             calories_by_food = {}
             cold_meals = set()
             snack_foods = set()
+            mealviewer_categories = set()
 
         def normalize(food):
             food = re.sub(r"\s*\([^)]*\)", "", food.casefold())
@@ -484,6 +564,10 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             food = re.sub(r"\s+with\s+.*$", "", food)
             return re.sub(r"[^a-z0-9]", "", food)
 
+        chef_salad_keys = {
+            normalize(food)
+            for food in chef_selections.get(CHEF_SELECTION_SALADS, [])
+        }
         merged_foods = []
         merged_allergens = {}
         merged_dietary = {}
@@ -547,6 +631,12 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                 merged_cold_meals.add(food)
 
         for food in fulton_foods:
+            fallback_category = get_fulton_assorted_category(food)
+            if (
+                fallback_category
+                and fallback_category in mealviewer_categories
+            ):
+                continue
             if food.strip().lower().startswith("chef selection") and any(
                 "wing" in item.lower() for item in mealviewer_foods
             ):
@@ -580,6 +670,11 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
         merged_menu[day] = {
             "foods": merged_foods,
             "snacks": merged_snacks,
+            "line_overrides": {
+                food: "Lettuce Chop It"
+                for food in merged_foods
+                if normalize(food) in chef_salad_keys
+            },
             "allergens": merged_allergens,
             "dietary": merged_dietary,
             "calories": merged_calories,
@@ -595,7 +690,7 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
 
 
 def get_line(food):
-    food = food.lower()
+    food = re.split(r"\s+(?:w/|with)\s+", food.lower(), maxsplit=1)[0]
 
     if "baked beans" in food:
         return "Sides"
@@ -695,9 +790,6 @@ def get_line(food):
 
     if any(word in food for word in academy_eats):
         return "Academy Eats"
-
-    if "chef salad" in food or "salad plate" in food or "salad" in food:
-        return "Lettuce Chop It"
 
     if any(word in food for word in go_gourmet):
         return "Go Go Gourmet"

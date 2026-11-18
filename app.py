@@ -249,6 +249,7 @@ def render_menu(menu):
                 calories_by_food = day_data.get("calories", {})
                 cold_meals = set(day_data.get("cold_meals", []))
                 snack_foods = set(day_data.get("snacks", []))
+                line_overrides = day_data.get("line_overrides", {})
                 allergen_data_unavailable = day_data.get(
                     "allergen_data_unavailable",
                     False,
@@ -260,6 +261,7 @@ def render_menu(menu):
                 calories_by_food = {}
                 cold_meals = set()
                 snack_foods = set()
+                line_overrides = {}
                 allergen_data_unavailable = False
 
             if day.startswith(today_name):
@@ -303,7 +305,9 @@ def render_menu(menu):
 
             lines = {}
             for food in dict.fromkeys(foods):
-                if food in cold_meals:
+                if food in line_overrides:
+                    line_name = line_overrides[food]
+                elif food in cold_meals:
                     line_name = (
                         "Cold Meals (Available in refrigerated section in all lines)"
                     )
