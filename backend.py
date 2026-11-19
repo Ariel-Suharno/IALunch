@@ -24,6 +24,15 @@ CHEF_SELECTION_CATEGORIES = {
     CHEF_SELECTION_SALADS,
 }
 
+FULTON_CHEF_SELECTION_REPLACEMENT_TERMS = {
+    "southern breaded thigh": (("breaded", "chicken", "thigh"),),
+    "hot sandwich": (("sandwich",), ("burger",), ("hot dog",)),
+}
+
+
+def normalize_chef_selection_category(category):
+    return " ".join(category.casefold().split())
+
 
 def get_innovation_html():
     html = urlopen(URL).read().decode("utf-8", errors="ignore")
@@ -154,11 +163,32 @@ def get_item_meat_tags(item):
     item_type = item.get("item_Type", "").strip().casefold()
     normalized_name = name.casefold()
 
-    if any(marker in normalized_name or marker in item_type for marker in (
+    non_meat_markers = (
         "vegetarian",
         "veggie",
         "vegan",
-    )):
+        "plant-based",
+        "plant based",
+        "meatless",
+        "black bean",
+        "beyond",
+        "impossible",
+        "non-meat",
+        "non meat",
+    )
+    vegetarian_or_vegan = any(
+        item.get(flag) is True
+        or str(item.get(flag, "")).strip().casefold() in {"true", "1", "yes"}
+        for flag in ("vegetarian", "vegan")
+    )
+    if (
+        vegetarian_or_vegan
+        or re.search(r"\(\s*v\s*\)\s*$", normalized_name)
+        or any(
+            marker in normalized_name or marker in item_type
+            for marker in non_meat_markers
+        )
+    ):
         return []
 
     specific_meat_terms = (
@@ -179,12 +209,12 @@ def get_item_meat_tags(item):
     )
 
     tags = []
+    if "burger" in normalized_name or "burger" in item_type:
+        tags.append("Beef")
+
     for term, tag in specific_meat_terms:
         if term in normalized_name or term in item_type:
             tags.append(tag)
-
-    if not tags and "burger" in normalized_name:
-        tags.append("Beef")
 
     return list(dict.fromkeys(tags))
 
@@ -348,6 +378,10 @@ def get_mealviewer_week_menu():
         chef_selections = {
             category: [] for category in CHEF_SELECTION_CATEGORIES
         }
+        chef_selection_categories = {
+            normalize_chef_selection_category(category): category
+            for category in chef_selections
+        }
         seen = set()
         for block in schedule.get("menuBlocks", []):
             block_name = block.get("blockName", "").casefold()
@@ -387,7 +421,10 @@ def get_mealviewer_week_menu():
                         elif "fruit" in item_type:
                             food_categories.add("fruit")
                         category = item.get("item_Type", "").strip()
-                        category_items = chef_selections.get(category)
+                        category_key = chef_selection_categories.get(
+                            normalize_chef_selection_category(category)
+                        )
+                        category_items = chef_selections.get(category_key)
                         item_allergens = get_item_allergens(item)
                         item_calories = get_item_calories(item)
                         item_dietary_tags = get_item_dietary_tags(item)
@@ -558,6 +595,11 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
             snack_foods = set()
             mealviewer_categories = set()
 
+        chef_selection_lookup = {
+            normalize_chef_selection_category(category): items
+            for category, items in chef_selections.items()
+        }
+
         def normalize(food):
             food = re.sub(r"\s*\([^)]*\)", "", food.casefold())
             food = re.sub(r"\s+w/\s+.*$", "", food)
@@ -637,12 +679,28 @@ def merge_week_menus(fulton_menu, mealviewer_menu):
                 and fallback_category in mealviewer_categories
             ):
                 continue
-            if food.strip().lower().startswith("chef selection") and any(
-                "wing" in item.lower() for item in mealviewer_foods
-            ):
-                continue
-            category = food.strip()
-            replacements = chef_selections.get(category, [])
+            category = normalize_chef_selection_category(food)
+            replacements = chef_selection_lookup.get(category, [])
+            if not replacements and category.startswith("chef selection "):
+                selection_label = re.split(
+                    r"\s+(?:w/|with)\s+",
+                    category,
+                    maxsplit=1,
+                )[0]
+                selection_name = selection_label[len("chef selection "):]
+                replacement_terms = (
+                    FULTON_CHEF_SELECTION_REPLACEMENT_TERMS.get(selection_name)
+                )
+                if replacement_terms:
+                    replacements = [
+                        item
+                        for item in mealviewer_foods
+                        if item not in snack_foods
+                        and any(
+                            all(term in item.casefold() for term in terms)
+                            for terms in replacement_terms
+                        )
+                    ]
             if replacements:
                 for replacement in replacements:
                     add_food(

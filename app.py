@@ -20,6 +20,10 @@ from backend import (
 SNACK_DROPDOWN_THRESHOLD = 45
 ITEM_INFO_IDS = count()
 MEAT_TAGS = frozenset({"beef", "chicken", "turkey", "pork", "seafood"})
+SALAD_BAR_INFO_NOTE = (
+    "Salad bar nutrition and allergen values vary depending on each student's "
+    "selections and customizations."
+)
 
 
 def get_allergen_badge_class(allergen):
@@ -108,6 +112,7 @@ def render_menu_item(
     allergens_by_food,
     dietary_by_food,
     calories_by_food,
+    info_note=None,
 ):
     allergens = allergens_by_food.get(food, [])
     item_tags = dietary_by_food.get(food, [])
@@ -135,11 +140,22 @@ def render_menu_item(
     )
     info_id = f"item-info-{next(ITEM_INFO_IDS)}"
     info_unavailable = food not in allergens_by_food and calories is None
-    info_control = (
-        '<button type="button" class="item-info-trigger item-info-unavailable" '
-        'aria-label="Allergen and calorie information unavailable" disabled>×</button>'
-        if info_unavailable
-        else (
+    if info_note:
+        info_control = (
+            '<button type="button" class="item-info-trigger" '
+            f'aria-label="Show information about {escape(food, quote=True)}" '
+            f'aria-describedby="{info_id}">i</button>'
+            f'<div id="{info_id}" class="item-info-content" role="tooltip" hidden>'
+            f'<p>{escape(info_note)}</p>'
+            '</div>'
+        )
+    elif info_unavailable:
+        info_control = (
+            '<button type="button" class="item-info-trigger item-info-unavailable" '
+            'aria-label="Allergen and calorie information unavailable" disabled>×</button>'
+        )
+    else:
+        info_control = (
             f'<button type="button" class="item-info-trigger" '
             f'aria-label="Show calories, allergens, and meat tags for {escape(food, quote=True)}" '
             f'aria-describedby="{info_id}">i</button>'
@@ -150,7 +166,6 @@ def render_menu_item(
             f'{meat_details}'
             '</div>'
         )
-    )
     return (
         f'<li class="menu-item" '
         f'data-tags="{escape(json.dumps(filter_tags), quote=True)}">'
@@ -372,6 +387,11 @@ def render_menu(menu):
                                 allergens_by_food,
                                 dietary_by_food,
                                 calories_by_food,
+                                info_note=(
+                                    SALAD_BAR_INFO_NOTE
+                                    if food == "Salad Bar"
+                                    else None
+                                ),
                             )
                         )
                     output.append('</ul></div>')
